@@ -10,9 +10,11 @@ import lombok.Setter;
 @Getter
 @Setter
 public class EmergencyContactDTO implements Serializable{
+    private Long contactId;
     private String name;
     private String contact;
-    public EmergencyContactDTO(String name, String contact) {
+    public EmergencyContactDTO(Long contactId, String name, String contact) {
+        this.contactId = contactId;
         this.name = name;
         this.contact = contact;
     }

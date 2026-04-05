@@ -9,14 +9,18 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.ChangePasswordRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.EmergencyContactDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
@@ -35,8 +39,9 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
-public class UserServiceImplementation implements UserService {
+public class UserServiceImplementation implements UserService, AuthService {
 
+    private final JavaMailSender javaMailSender;
     private final EmergencyContactRepository emergencyContactRepository;
     private final Cloudinary cloudinary;
     private final UserEntityRepository userEntityRepository;
@@ -46,12 +51,21 @@ public class UserServiceImplementation implements UserService {
     private static final String USER_PROFILE_CACHE_PREFIX = "user:profile:";
     // Cache TTL (time-to-live) in minutes
     private static final long CACHE_TTL_MINUTES = 30;
+    
+    // Redis keys and settings for OTP rate limiting
+    private static final String USER_OTP_CACHE_PREFIX = "user:otp:val:";
+    private static final String USER_OTP_REQ_COUNT_PREFIX = "user:otp:req:";
+    private static final long OTP_TTL_MINUTES = 5;
+    private static final long OTP_RATE_LIMIT_MINUTES = 15;
+    private static final int MAX_OTP_REQUESTS = 3;
     public UserServiceImplementation(
+        JavaMailSender javaMailSender,
         EmergencyContactRepository emergencyContactRepository,
         Cloudinary cloudinary,
         PasswordEncoder passwordEncoder,
         UserEntityRepository userEntityRepository,
         RedisTemplate<String, Object> redisTemplate) {
+            this.javaMailSender = javaMailSender;
             this.emergencyContactRepository = emergencyContactRepository;
             this.cloudinary = cloudinary;
             this.passwordEncoder = passwordEncoder;
@@ -201,6 +215,99 @@ public class UserServiceImplementation implements UserService {
         user = this.userEntityRepository.save(user);
         return this.getUserProfileByEmail(email);
     }
+    // delete emergency contact number
+    @Override
+    @Transactional
+    @CacheEvict(value = USER_PROFILE_CACHE_PREFIX, key = "#email")
+    public void deleteEmergencyContact(String email, Long contactId) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+        List<EmergencyContactEntity> emergencyContacts = user.getEmergencyContacts();
+        // Find the contact — must belong to THIS user
+        EmergencyContactEntity toRemove = emergencyContacts.stream()
+            .filter(c -> c.getId().equals(contactId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException(
+                "Emergency contact not found or doesn't belong to this user."));
+        // Remove from user's list → orphanRemoval handles the DB DELETE automatically
+        emergencyContacts.remove(toRemove);
+        this.userEntityRepository.save(user);
+    }
+    // change account password
+    @Override
+    @Transactional
+    @CacheEvict(value = USER_PROFILE_CACHE_PREFIX, key = "#email")
+    public void changeAccountPassword(String email, ChangePasswordRequest request) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+            if(!passwordEncoder.matches(request.getOldPassword(), user.getPassword()))
+                throw new AccessDeniedException("Old password not matched.");
+            if(passwordEncoder.matches(request.getNewPassword(), user.getPassword()))
+                throw new IllegalArgumentException("New password cannot be same as old password.");
+            if(request.getNewPassword().length() < 8)
+                throw new IllegalArgumentException("New password must be at least 8 characters long.");
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            user.setAccountUpdatedAt(LocalDateTime.now());
+            this.userEntityRepository.save(user);
+            log.info("Password changed successfully for user: {}", user.getUserFullName());
+    }
+    // request OTP
+    @Override
+    public String requestOtp(String email) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+        String countKey = USER_OTP_REQ_COUNT_PREFIX + email;
+        Integer reqCount = (Integer) redisTemplate.opsForValue().get(countKey);
+        if (reqCount != null && reqCount >= MAX_OTP_REQUESTS) {
+            Long ttl = redisTemplate.getExpire(countKey, TimeUnit.MINUTES);
+            long waitMinutes = (ttl != null && ttl > 0) ? ttl : OTP_RATE_LIMIT_MINUTES;
+            throw new RuntimeException("Maximum OTP request limit reached. Please try again after " + waitMinutes + " minutes.");
+        }
+        if (reqCount == null) 
+            redisTemplate.opsForValue().set(countKey, 1, OTP_RATE_LIMIT_MINUTES, TimeUnit.MINUTES);
+        else {
+            Long ttl = redisTemplate.getExpire(countKey, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(countKey, reqCount + 1, ttl != null && ttl > 0 ? ttl : (OTP_RATE_LIMIT_MINUTES * 60), TimeUnit.SECONDS);
+        }
+        String otp = generateOtp();
+        String otpKey = USER_OTP_CACHE_PREFIX + email;
+        redisTemplate.opsForValue().set(otpKey, otp, OTP_TTL_MINUTES, TimeUnit.MINUTES);
+        SimpleMailMessage mailMessage = new SimpleMailMessage();
+        mailMessage.setTo(email);
+        mailMessage.setSubject("OTP for Password Reset");
+        mailMessage.setText("Your 6-digit verification code is: " + otp +
+                        "\nThis code is valid for " + OTP_TTL_MINUTES + " minutes.");
+        javaMailSender.send(mailMessage);
+        log.info("Generated OTP for {}", email);
+        return "OTP sent successfully. It is valid for " + OTP_TTL_MINUTES + " minutes.";
+    }
+    // reset password
+    @Override
+    @Transactional
+    @CacheEvict(value = USER_PROFILE_CACHE_PREFIX, key = "#email")
+    public String resetPassword(String email, String otp, String newPassword) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+        String otpKey = USER_OTP_CACHE_PREFIX + email;
+        String storedOtp = (String) redisTemplate.opsForValue().get(otpKey);
+        if (storedOtp == null)
+            throw new AccessDeniedException("OTP expired or invalid. Request new OTP.");
+        if (!storedOtp.equals(otp))
+            throw new AccessDeniedException("Invalid OTP.");
+        redisTemplate.delete(otpKey);
+        if(newPassword == null || newPassword.length() < 8)
+            throw new IllegalArgumentException("Password must be at least 8 characters long.");
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setAccountUpdatedAt(LocalDateTime.now());
+        this.userEntityRepository.save(user);
+        redisTemplate.delete(USER_OTP_REQ_COUNT_PREFIX + email);
+        log.info("Password reset successfully for user: {}", user.getUserFullName());
+        return "Password reset successfully.";
+    }
     // helper methods
     private void validateUserAccountStatus(UserEntity user) {
         if (user.getAccountStatus() == UserAccountStatus.INACTIVE)
@@ -210,5 +317,7 @@ public class UserServiceImplementation implements UserService {
         if (user.getAccountStatus() == UserAccountStatus.DELETED)
             throw new AccessDeniedException("User account is deleted.");
     }
-
+    private String generateOtp() {
+        return String.valueOf((int) (Math.random() * 900000 + 100000));
+    }
 }

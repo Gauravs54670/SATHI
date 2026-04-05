@@ -14,6 +14,7 @@ public interface EmergencyContactRepository extends
  JpaRepository<EmergencyContactEntity, Long> {
     @Query("""
             SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.EmergencyContactDTO(
+                contact.id,
                 contact.name,
                 contact.phoneNumber
             )
