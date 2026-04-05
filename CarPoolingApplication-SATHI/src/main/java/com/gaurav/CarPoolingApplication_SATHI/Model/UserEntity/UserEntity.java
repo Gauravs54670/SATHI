@@ -1,8 +1,10 @@
 package com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -14,6 +16,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -66,9 +69,8 @@ public class UserEntity {
     private Double averageRating = 0.0;
     private Integer totalRatingsCount = 0;
     private Integer totalRidesCompleted = 0;
-    private String emergencyContactName;
-    @Column(length = 15)
-    private String emergencyContactPhone;
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EmergencyContactEntity> emergencyContacts; 
     private LocalDateTime accountCreatedAt;
     private LocalDateTime accountUpdatedAt;
 

@@ -7,12 +7,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
 import com.gaurav.CarPoolingApplication_SATHI.Service.UserService.UserService;
 
 @RestController
@@ -41,4 +43,15 @@ public class UserController {
                 "response", profileUrl
         ), HttpStatus.OK);
     } 
+    @PostMapping("/update-myProfile")
+    public ResponseEntity<?> updateMyProfile(
+        Authentication authentication,
+         @RequestBody UserProfileUpdateRequest userProfileUpdateRequest) {
+            String email = authentication.getName();
+            UserProfileDTO profileDTO = this.userService.updateProfile(email, userProfileUpdateRequest);
+            return new ResponseEntity<>(Map.of(
+                "message", "Profile updated successfully",
+                "response", profileDTO
+            ), HttpStatus.OK);
+    }
 }

@@ -34,4 +34,28 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now());
         return new ResponseEntity<>(exceptionDescription, HttpStatus.FORBIDDEN);
     }
+    @ExceptionHandler(RedisConnectionFailureException.class)
+    public ResponseEntity<ExceptionDescription> handleRedisConnectionFailureException(RedisConnectionFailureException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ExceptionDescription> handleException(Exception ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ExceptionDescription> handleIllegalArgumentException(IllegalArgumentException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.BAD_REQUEST);
+    }
 }

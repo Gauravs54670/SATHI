@@ -11,6 +11,7 @@ import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 @Repository
 public interface UserEntityRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findByEmail(String email);
+    Optional<UserEntity> findByPhoneNumber(String phoneNumber);
     Optional<UserEntity> findByEmailAndPhoneNumber(String email, String phoneNumber);
     @Query("""
             SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO(
@@ -20,8 +21,12 @@ public interface UserEntityRepository extends JpaRepository<UserEntity, Long> {
                 user.phoneNumber,
                 user.accountStatus,
                 user.accountCreatedAt,
-                user.accountUpdatedAt,
-                user.profilePictureUrl
+                user.profilePictureUrl,
+                user.gender,
+                user.bio,
+                user.averageRating,
+                user.totalRatingsCount,
+                user.totalRidesCompleted
             )
             FROM UserEntity user
             WHERE user.email = :email

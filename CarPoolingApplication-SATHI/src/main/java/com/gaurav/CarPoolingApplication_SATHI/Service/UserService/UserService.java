@@ -6,9 +6,11 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationRespon
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
 
 public interface UserService {
     UserRegistrationResponse registerUser(UserRegistrationRequest request);
     UserProfileDTO getUserProfileByEmail(String email);
     String uploadProfile(String email, MultipartFile file);
+    UserProfileDTO updateProfile(String email, UserProfileUpdateRequest request);
 }

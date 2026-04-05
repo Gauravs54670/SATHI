@@ -1,11 +1,15 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.UserService;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,14 +17,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.EmergencyContactDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationResponse;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.DuplicateEntryException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
+import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.EmergencyContactEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
+import com.gaurav.CarPoolingApplication_SATHI.Repository.EmergencyContactRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.UserEntityRepository;
 
 import jakarta.transaction.Transactional;
@@ -29,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class UserServiceImplementation implements UserService {
 
+    private final EmergencyContactRepository emergencyContactRepository;
     private final Cloudinary cloudinary;
     private final UserEntityRepository userEntityRepository;
     private final PasswordEncoder passwordEncoder;
@@ -38,10 +47,12 @@ public class UserServiceImplementation implements UserService {
     // Cache TTL (time-to-live) in minutes
     private static final long CACHE_TTL_MINUTES = 30;
     public UserServiceImplementation(
+        EmergencyContactRepository emergencyContactRepository,
         Cloudinary cloudinary,
         PasswordEncoder passwordEncoder,
         UserEntityRepository userEntityRepository,
         RedisTemplate<String, Object> redisTemplate) {
+            this.emergencyContactRepository = emergencyContactRepository;
             this.cloudinary = cloudinary;
             this.passwordEncoder = passwordEncoder;
             this.userEntityRepository = userEntityRepository;
@@ -90,6 +101,11 @@ public class UserServiceImplementation implements UserService {
         // Cache miss — fetch from database
         UserProfileDTO profileDTO = this.userEntityRepository.findUserProfileByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+        List<EmergencyContactDTO> emergencyContacts = this.emergencyContactRepository
+                    .findEmergencyContactsByEmail(email);
+                    if(emergencyContacts == null || emergencyContacts.isEmpty())
+                        emergencyContacts = new ArrayList<>();
+        profileDTO.setEmergencyContacts(emergencyContacts);
         // Store in Redis with TTL (auto-expires after 30 minutes)
         redisTemplate.opsForValue().set(cacheKey, profileDTO, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         return profileDTO;
@@ -136,6 +152,54 @@ public class UserServiceImplementation implements UserService {
             }
             throw new RuntimeException("Photo upload failed. Please try again.");
         }
+    }
+    // update user profile
+    @Override 
+    @Transactional
+    @CachePut(value = USER_PROFILE_CACHE_PREFIX, key = "#email")
+    public UserProfileDTO updateProfile(String email, UserProfileUpdateRequest request) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+        if(request.getUserFullName() != null && !request.getUserFullName().isEmpty())
+            user.setUserFullName(request.getUserFullName());
+        if(request.getGender() != null && !request.getGender().isEmpty())
+            user.setGender(request.getGender());
+        if(request.getBio() != null && !request.getBio().isEmpty())
+            user.setBio(request.getBio());
+        if(request.getPhoneNumber() != null && !request.getPhoneNumber().isEmpty()){
+            if(request.getPhoneNumber().length() > 10) 
+                throw new IllegalArgumentException("Invalid phone number." + " Please check the phone number.");
+            if(this.userEntityRepository.findByPhoneNumber(request.getPhoneNumber()).isPresent())
+                throw new DuplicateEntryException("Phone number already exists.");
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+        if(request.getEmergencyContacts() != null && !request.getEmergencyContacts().isEmpty()){
+            if (request.getEmergencyContacts().size() >= 3)
+                throw new IllegalArgumentException("Maximum 3 emergency contacts allowed.");
+            final UserEntity finalUser = user;
+            List<EmergencyContactEntity> existingContacts = user.getEmergencyContacts();
+            Set<String> existingPhoneNumbers = existingContacts.stream()
+                    .map(EmergencyContactEntity::getPhoneNumber)
+                    .collect(Collectors.toSet());
+            List<EmergencyContactEntity> emergencyContacts = request.getEmergencyContacts()
+                    .stream()
+                    .filter(contact -> contact.getContact() != null && !contact.getContact().isEmpty())
+                    .filter(contact -> !existingPhoneNumbers.contains(contact.getContact()))
+                    .map(contact -> {
+                        EmergencyContactEntity emergencyContact = new EmergencyContactEntity();
+                        emergencyContact.setUser(finalUser);
+                        emergencyContact.setName(contact.getName());
+                        emergencyContact.setPhoneNumber(contact.getContact());
+                        return emergencyContact;
+                    })
+                    .collect(Collectors.toList());
+            existingContacts.addAll(emergencyContacts);
+            user.setEmergencyContacts(existingContacts);
+        }
+        user.setAccountUpdatedAt(LocalDateTime.now());
+        user = this.userEntityRepository.save(user);
+        return this.getUserProfileByEmail(email);
     }
     // helper methods
     private void validateUserAccountStatus(UserEntity user) {
