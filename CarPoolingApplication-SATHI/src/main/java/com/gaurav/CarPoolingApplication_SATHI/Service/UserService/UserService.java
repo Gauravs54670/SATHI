@@ -12,7 +12,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateReque
 public interface UserService {
     UserRegistrationResponse registerUser(UserRegistrationRequest request);
     UserProfileDTO getUserProfileByEmail(String email);
-    String uploadProfile(String email, MultipartFile file);
+    String uploadProfilePhoto(String email, MultipartFile file);
     UserProfileDTO updateProfile(String email, UserProfileUpdateRequest request);
     void deleteEmergencyContact(String email, Long contactId);
     void changeAccountPassword(String email, ChangePasswordRequest request);

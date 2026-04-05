@@ -20,6 +20,8 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
 import com.gaurav.CarPoolingApplication_SATHI.Service.UserService.UserService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -40,7 +42,7 @@ public class UserController {
     @PostMapping("/uploadProfile")
     public ResponseEntity<?> uploadProfile(@RequestParam("file") MultipartFile file, Authentication authentication) {
         String email = authentication.getName();
-        String profileUrl = this.userService.uploadProfile(email, file);
+        String profileUrl = this.userService.uploadProfilePhoto(email, file);
         return new ResponseEntity<>(Map.of(
                 "message", "Profile photo uploaded successfully",
                 "response", profileUrl
@@ -49,7 +51,7 @@ public class UserController {
     @PostMapping("/update-myProfile")
     public ResponseEntity<?> updateMyProfile(
         Authentication authentication,
-         @RequestBody UserProfileUpdateRequest userProfileUpdateRequest) {
+         @Valid @RequestBody UserProfileUpdateRequest userProfileUpdateRequest) {
             String email = authentication.getName();
             UserProfileDTO profileDTO = this.userService.updateProfile(email, userProfileUpdateRequest);
             return new ResponseEntity<>(Map.of(
@@ -70,7 +72,7 @@ public class UserController {
     @PutMapping("/change-password")
     public ResponseEntity<?> changePassword(
         Authentication authentication,
-        @RequestBody ChangePasswordRequest request) {
+        @Valid @RequestBody ChangePasswordRequest request) {
         String email = authentication.getName();
         this.userService.changeAccountPassword(email, request);
         return new ResponseEntity<>(Map.of(

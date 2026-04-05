@@ -63,8 +63,6 @@ public class UserEntity {
             joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "user_role", length = 20)
     private Set<UserRole> userRoles;
-    private String otp;
-    private LocalDateTime otpExpirationTime;
     @Column(columnDefinition = "DOUBLE DEFAULT 0.0")
     private Double averageRating = 0.0;
     private Integer totalRatingsCount = 0;
