@@ -4,16 +4,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { loginAndFetchProfile, fetchProfile } from "@/lib/api";
 
 // Shape of the user profile returned from the backend
-export interface UserProfile {
-  userId: number;
-  userFullName: string;
-  email: string;
-  phoneNumber: string;
-  userAccountStatus: string;
-  accountCratedAt: string;
-  accountUpdatedAt: string;
-  profilePictureUrl?: string;
-}
+import { UserProfileDTO } from "@/lib/api";
+
+export type UserProfile = UserProfileDTO;
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -22,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  updateStoredPassword: (newPassword: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,6 +64,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const updateStoredPassword = useCallback((newPassword: string) => {
+    const creds = localStorage.getItem("sathi_credentials");
+    if (creds) {
+      try {
+        const parsed = JSON.parse(creds);
+        localStorage.setItem(
+          "sathi_credentials",
+          JSON.stringify({ email: parsed.email, password: newPassword })
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -79,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         refreshProfile,
+        updateStoredPassword,
       }}
     >
       {children}
