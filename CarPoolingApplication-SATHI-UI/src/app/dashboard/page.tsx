@@ -2,9 +2,11 @@
 
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const { user, isLoggedIn, isLoading } = useAuth();
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -125,27 +127,172 @@ export default function DashboardPage() {
             </div>
           </>
         ) : (
-          /* Guest view — prompt to sign in */
-          <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600
-              flex items-center justify-center text-white text-4xl font-bold mb-6
-              shadow-lg shadow-indigo-500/25">
-              S
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-3">Welcome to SATHI</h1>
-            <p className="text-slate-400 text-base text-center max-w-md mb-8">
-              Share rides, save money, and reduce your carbon footprint. Sign in to get started!
-            </p>
-            <a
-              href="/signin"
-              className="px-8 py-3 rounded-xl text-base font-semibold
-                bg-gradient-to-r from-indigo-500 to-purple-600 text-white
-                transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/30
-                hover:-translate-y-1 hover:from-indigo-400 hover:to-purple-500
-                active:translate-y-0"
-            >
-              Sign In to Get Started
-            </a>
+          /* Guest landing view */
+          <div className="absolute inset-0 bg-transparent overflow-y-auto">
+            {/* Background glow effects */}
+            <div className="absolute top-0 left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute top-[20%] right-[-10%] w-[30%] h-[50%] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
+
+            <main className="relative z-10 w-full mb-0">
+              {/* 1. Hero Section */}
+              <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 flex flex-col items-center text-center animate-fade-in-up">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-indigo-400 text-sm font-medium mb-8">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                  Join thousands of daily commuters
+                </div>
+                
+                <h1 className="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-slate-400 mb-6 tracking-tight">
+                  Smart Commutes, <br className="hidden md:block" /> Shared Journeys.
+                </h1>
+                
+                <p className="max-w-2xl text-slate-400 text-lg md:text-xl mb-10 leading-relaxed">
+                  SATHI connects verified drivers with passengers heading the same way. Save money, reduce traffic, and make your daily commute eco-friendly.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <button 
+                    onClick={() => router.push('/signin')}
+                    className="px-8 py-4 rounded-xl text-base font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 text-white transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-1 hover:from-indigo-400 hover:to-purple-500"
+                  >
+                    Get Started Now
+                  </button>
+                  <button 
+                    onClick={() => {
+                      document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="px-8 py-4 rounded-xl text-base font-semibold bg-white/5 border border-white/10 text-white transition-all duration-300 hover:bg-white/10 hover:-translate-y-1"
+                  >
+                    Learn More
+                  </button>
+                </div>
+              </section>
+
+              {/* 2. Features Section */}
+              <section id="features" className="relative w-full border-t border-white/5 bg-white/[0.02] py-24">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                  <div className="text-center mb-16 animate-fade-in-up-delay">
+                    <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Why Choose SATHI?</h2>
+                    <p className="text-slate-400 max-w-xl mx-auto">Everything you need for a comfortable, safe, and cost-effective journey.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {/* Feature 1 */}
+                    <div className="glass-card p-8 hover:-translate-y-2 transition-transform duration-300 group">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-6 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-3">Verified Profiles</h3>
+                      <p className="text-slate-400 leading-relaxed">Safety is our top priority. Every member is verified with government ID and phone number before they can offer or book rides.</p>
+                    </div>
+
+                    {/* Feature 2 */}
+                    <div className="glass-card p-8 hover:-translate-y-2 transition-transform duration-300 group delay-100">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /></svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-3">Split Costs</h3>
+                      <p className="text-slate-400 leading-relaxed">Save up to 70% on your daily commute costs. Drivers cover their fuel, and passengers travel comfortably at a fraction of taxi fares.</p>
+                    </div>
+
+                    {/* Feature 3 */}
+                    <div className="glass-card p-8 hover:-translate-y-2 transition-transform duration-300 group delay-200">
+                      <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-400 flex items-center justify-center mb-6 group-hover:bg-purple-500 group-hover:text-white transition-colors">
+                        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-3">Eco-Friendly</h3>
+                      <p className="text-slate-400 leading-relaxed">Fewer empty seats mean fewer cars on the road. Join our mission to reduce carbon emissions and build a sustainable future.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* 3. Testimonials Section */}
+              <section className="relative w-full py-24 bg-gradient-to-b from-transparent to-black/40">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="text-center mb-16">
+                    <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Loved by Commuters</h2>
+                    <p className="text-slate-400 max-w-xl mx-auto">Don't just take our word for it. Look at what our community is saying.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Testimonial 1 */}
+                    <div className="bg-bg-card border border-white/5 rounded-2xl p-6 relative overflow-hidden group hover:border-indigo-500/30 transition-colors duration-300">
+                      <div className="absolute -top-4 -right-4 text-white/[0.03] group-hover:text-indigo-500/[0.05] transition-colors">
+                        <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" /></svg>
+                      </div>
+                      <div className="flex gap-1 text-amber-400 mb-4">
+                        {[1,2,3,4,5].map(i => (
+                          <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        ))}
+                      </div>
+                      <p className="text-slate-300 italic mb-6 relative z-10">"SATHI absolutely transformed my daily 40km commute to work. Instead of spending a fortune and driving alone, I now share the ride with great people and cut costs by half!"</p>
+                      <div className="flex items-center gap-3 mt-auto">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm">AK</div>
+                        <div>
+                          <h4 className="text-white font-medium text-sm">Arjun Kapoor</h4>
+                          <p className="text-slate-500 text-xs">Software Engineer, Bangalore</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Testimonial 2 */}
+                    <div className="bg-bg-card border border-white/5 rounded-2xl p-6 relative overflow-hidden group hover:border-emerald-500/30 transition-colors duration-300">
+                      <div className="absolute -top-4 -right-4 text-white/[0.03] group-hover:text-emerald-500/[0.05] transition-colors">
+                        <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" /></svg>
+                      </div>
+                      <div className="flex gap-1 text-amber-400 mb-4">
+                        {[1,2,3,4,5].map(i => (
+                          <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        ))}
+                      </div>
+                      <p className="text-slate-300 italic mb-6 relative z-10">"As a frequent traveler between Pune and Mumbai, SATHI has been a lifesaver. Finding rides is incredibly easy, and the verified profiles make me feel incredibly safe and relaxed."</p>
+                      <div className="flex items-center gap-3 mt-auto">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm">NM</div>
+                        <div>
+                          <h4 className="text-white font-medium text-sm">Neha Sharma</h4>
+                          <p className="text-slate-500 text-xs">Marketing Lead, Pune</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Testimonial 3 */}
+                    <div className="bg-bg-card border border-white/5 rounded-2xl p-6 relative overflow-hidden group hover:border-purple-500/30 transition-colors duration-300">
+                      <div className="absolute -top-4 -right-4 text-white/[0.03] group-hover:text-purple-500/[0.05] transition-colors">
+                        <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" /></svg>
+                      </div>
+                      <div className="flex gap-1 text-amber-400 mb-4">
+                        {[1,2,3,4,5].map(i => (
+                          <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        ))}
+                      </div>
+                      <p className="text-slate-300 italic mb-6 relative z-10">"The app is so smooth. The UI feels premium and everything works seamlessly. But beyond the app, making new friends on the route is the best hidden feature of SATHI carpooling!"</p>
+                      <div className="flex items-center gap-3 mt-auto">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-bold text-sm">RD</div>
+                        <div>
+                          <h4 className="text-white font-medium text-sm">Rahul Desai</h4>
+                          <p className="text-slate-500 text-xs">Student, Delhi</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              
+              {/* Footer */}
+              <footer className="w-full border-t border-white/10 bg-black/50 py-10">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs">S</div>
+                    <span className="text-white font-semibold">SATHI</span>
+                  </div>
+                  <p className="text-slate-500 text-sm">© 2026 SATHI Carpooling. All rights reserved.</p>
+                  <div className="flex gap-4">
+                    <a href="#" className="text-slate-500 hover:text-white transition-colors"><span className="sr-only">Twitter</span><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg></a>
+                    <a href="#" className="text-slate-500 hover:text-white transition-colors"><span className="sr-only">LinkedIn</span><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></a>
+                  </div>
+                </div>
+              </footer>
+            </main>
           </div>
         )}
       </main>
