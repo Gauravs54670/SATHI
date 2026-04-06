@@ -12,7 +12,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -21,6 +20,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -31,20 +31,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.gaurav.CarPoolingApplication_SATHI.JWT.JWTAuthenticationFilter;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableWebSecurity
 public class SATHIConfiguration {
-
+    private final JWTAuthenticationFilter jwtAuthenticationFilter;
+    public SATHIConfiguration(JWTAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
     @Value("${CLOUDINARY_CLOUD_NAME}")
     private String cloudName;
     @Value("${CLOUDINARY_API_KEY}")
     private String apiKey;
     @Value("${CLOUDINARY_API_SECRET}")
     private String apiSecret;
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -76,7 +79,7 @@ public class SATHIConfiguration {
                                 .anyRequest().authenticated());
         httpSecurity.sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        httpSecurity.httpBasic(Customizer.withDefaults());
+        // httpSecurity.httpBasic(Customizer.withDefaults());
         httpSecurity.exceptionHandling(
                 exception -> exception
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
@@ -102,8 +105,10 @@ public class SATHIConfiguration {
                                 """);
                         })
         );
+        httpSecurity.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return httpSecurity.build();
     }
+
     @Bean
     AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();

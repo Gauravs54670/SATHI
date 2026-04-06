@@ -16,5 +16,4 @@ public interface UserService {
     UserProfileDTO updateProfile(String email, UserProfileUpdateRequest request);
     void deleteEmergencyContact(String email, Long contactId);
     void changeAccountPassword(String email, ChangePasswordRequest request);
-    
 }
