@@ -6,10 +6,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.Service.DriverService.DriverService;
 
 @RestController
@@ -28,6 +32,28 @@ public class DriverController {
             "status", "success",
             "message", "Driver profile fetched successfully",
             "data", driverProfile
+        ), HttpStatus.OK);
+    }
+    // update driver profile
+    @PutMapping("/update-profile")
+    public ResponseEntity<?> updateMyProfile(Authentication authentication, @RequestBody UpdateDriverProfileRequest request) {
+        String email = authentication.getName();
+        DriverProfileDTO driverProfile = this.driverService.updateDriverProfile(email, request);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Driver profile updated successfully",
+            "data", driverProfile
+        ), HttpStatus.OK);
+    }
+    // change driver availability status
+    @PutMapping("/change-availability-status")
+    public ResponseEntity<?> changeDriverAvailabilityStatus(
+        Authentication authentication, @RequestParam("status") String driverAvailabilityStatus) {
+        String email = authentication.getName();
+        String message = this.driverService.changeDriverAvailabilityStatus(email, driverAvailabilityStatus);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", message
         ), HttpStatus.OK);
     }
 }

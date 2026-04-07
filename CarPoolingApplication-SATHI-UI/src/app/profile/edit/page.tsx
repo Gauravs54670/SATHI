@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { updateProfile, deleteEmergencyContact, EmergencyContactDTO } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import ChangePasswordModal from "@/components/ChangePasswordModal";
+import CustomSelect from "@/components/CustomSelect";
 
 export default function EditProfilePage() {
   const { user, isLoggedIn, isLoading, refreshProfile } = useAuth();
@@ -228,17 +229,18 @@ export default function EditProfilePage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">Gender</label>
-                  <select
-                    name="gender"
+                  <CustomSelect
                     value={form.gender}
-                    onChange={handleChange}
-                    className="sathi-input"
-                  >
-                    <option value="" disabled>Select gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    onChange={(val) => setForm({ ...form, gender: val })}
+                    options={[
+                      { value: "Male", label: "Male" },
+                      { value: "Female", label: "Female" },
+                      { value: "Other", label: "Other" },
+                    ]}
+                    placeholder="Select gender"
+                    className="sathi-input-custom-select-wrapper" 
+                  />
+                  {/* Note: since sathi-input has its own padding, custom select handles its own, so we let CustomSelect do its default or add specific classes if needed */}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">Email <span className="text-slate-500 text-xs">(Read-only)</span></label>

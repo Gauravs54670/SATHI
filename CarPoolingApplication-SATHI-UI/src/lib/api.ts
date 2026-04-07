@@ -238,3 +238,34 @@ export async function fetchDriverProfile() {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch driver profile");
   return data.data; // Note: Driver Controller maps this uniquely under "data"
 }
+
+export interface DriverProfileUpdateRequest {
+  licenseExpirationDate?: string;
+  vehicleModel?: string;
+  vehicleNumber?: string;
+  vehicleSeatCapacity?: number;
+  vehicleCategory?: string;
+  vehicleClass?: string;
+}
+
+export async function updateDriverProfile(payload: DriverProfileUpdateRequest) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/update-profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to update driver profile");
+  return data.data;
+}
+
+export async function changeDriverAvailabilityStatus(status: string) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/change-availability-status?status=${encodeURIComponent(status)}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to update availability status");
+  return data.message;
+}

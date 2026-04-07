@@ -37,15 +37,26 @@ export default function DriverProfilePage() {
     <div className="min-h-screen">
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group w-fit"
-        >
-          <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          <span className="font-medium text-sm">Back to Dashboard</span>
-        </button>
+        <div className="flex justify-between items-center mb-6">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
+          >
+            <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="font-medium text-sm">Back to Dashboard</span>
+          </button>
+          
+          {profile && (
+            <button
+               onClick={() => router.push("/driver/update")}
+               className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg hover:shadow-indigo-500/25 transition-all"
+            >
+               Update Driver Profile
+            </button>
+          )}
+        </div>
 
         <div className="glass-card p-0 animate-fade-in-up relative overflow-hidden">
           {/* Header Gradient */}

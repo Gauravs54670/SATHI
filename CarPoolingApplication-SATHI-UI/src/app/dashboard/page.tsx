@@ -3,8 +3,9 @@
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { fetchUserRoles } from "@/lib/api";
+import { useState, useEffect } from "react";
+import CustomSelect from "@/components/CustomSelect";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus } from "@/lib/api";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 
 export default function DashboardPage() {
@@ -13,6 +14,45 @@ export default function DashboardPage() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isDriver, setIsDriver] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
+  const [statusChanging, setStatusChanging] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    if (isLoggedIn && user) {
+      fetchUserRoles()
+        .then(roles => {
+          if (!mounted) return;
+          if (roles.includes("DRIVER")) {
+            setIsDriver(true);
+            fetchDriverProfile()
+              .then(profile => {
+                if (mounted && profile) {
+                  setAvailabilityStatus(profile.driverAvailabilityStatus || "OFF_DUTY");
+                }
+              }).catch(err => console.error("Driver profile not found", err));
+          }
+        })
+        .catch(err => console.error("Roles fetch error", err));
+    }
+    return () => { mounted = false; };
+  }, [isLoggedIn, user]);
+
+  const handleStatusChange = async (newStatus: string) => {
+    setStatusChanging(true);
+    try {
+      const msg = await changeDriverAvailabilityStatus(newStatus);
+      setAvailabilityStatus(newStatus);
+      setToastMessage(msg);
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      setToastMessage(err.message || "Failed to update status");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setStatusChanging(false);
+    }
+  };
 
   const proceedToOfferRide = async () => {
     setActionLoading(true);
@@ -125,6 +165,50 @@ export default function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   {toastMessage}
+                </div>
+              )}
+              {isDriver && availabilityStatus && (
+                <div className="mb-6 glass-card p-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-indigo-500/20">
+                  <div className="flex items-center gap-3">
+                     <div className={`w-3 h-3 rounded-full ${availabilityStatus === 'AVAILABLE' ? 'bg-emerald-500 animate-pulse' : availabilityStatus === 'ON_RIDE' ? 'bg-indigo-500 animate-pulse' : availabilityStatus === 'NOT_AVAILABLE' ? 'bg-amber-500' : 'bg-slate-500'}`} />
+                     <p className="text-white font-medium">Your Driver Status:</p>
+                  </div>
+                  <div className="flex gap-2 relative">
+                     {statusChanging && (
+                       <svg className="absolute -left-6 top-2.5 animate-spin w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                       </svg>
+                     )}
+                     <button
+                        onClick={() => handleStatusChange("AVAILABLE")}
+                        disabled={statusChanging || availabilityStatus === "AVAILABLE"}
+                        className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${availabilityStatus === 'AVAILABLE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-transparent'}`}
+                     >
+                        Available
+                     </button>
+                     <button
+                        onClick={() => handleStatusChange("NOT_AVAILABLE")}
+                        disabled={statusChanging || availabilityStatus === "NOT_AVAILABLE"}
+                        className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${availabilityStatus === 'NOT_AVAILABLE' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-transparent'}`}
+                     >
+                        Not Available
+                     </button>
+                     <button
+                        disabled={true}
+                        className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-white/5 text-slate-600 border border-transparent cursor-not-allowed`}
+                        title="Available after posting a ride"
+                     >
+                        On Ride
+                     </button>
+                     <button
+                        onClick={() => handleStatusChange("OFF_DUTY")}
+                        disabled={statusChanging || availabilityStatus === "OFF_DUTY"}
+                        className={`px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${availabilityStatus === 'OFF_DUTY' ? 'bg-slate-600/20 text-slate-300 border border-slate-500/30' : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-transparent'}`}
+                     >
+                        Off Duty
+                     </button>
+                  </div>
                 </div>
               )}
               <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>

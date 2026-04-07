@@ -16,6 +16,7 @@ public interface DriverEntityRepository extends JpaRepository<DriverProfileEntit
     Optional<DriverProfileEntity> findByUserEmail(String email);
     boolean existsByLicenseNumber(String licenseNumber);
     boolean existsByVehicleNumber(String vehicleNumber);
+    Optional<DriverProfileEntity> findByVehicleNumber(String vehicleNumber);
     @Query("""
         SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO(
             driver.driverProfileId,

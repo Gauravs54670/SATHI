@@ -1,13 +1,23 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleCategory;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleClass;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
@@ -56,7 +66,71 @@ public class DriverServiceImplementation implements DriverService{
         log.info("Driver profile fetched for: {}", email);
         return profile;
     }
+    // update driver profile
+    @Override
+    @Transactional
+    public DriverProfileDTO updateDriverProfile(String email, UpdateDriverProfileRequest request) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccount(user);
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
+        if(request.getLicenseExpirationDate() != null) {
+            if(request.getLicenseExpirationDate().isBefore(LocalDate.now()))
+                throw new IllegalArgumentException("Licence already expired.");
+            driverProfileEntity.setLicenseExpirationDate(request.getLicenseExpirationDate());
+        }
+        if(request.getVehicleModel() != null && !request.getVehicleModel().isEmpty())
+            driverProfileEntity.setVehicleModel(request.getVehicleModel());
+        if(request.getVehicleNumber() != null && !request.getVehicleNumber().isEmpty()) {
+            Optional<DriverProfileEntity> profile = this.driverEntityRepository.findByVehicleNumber(request.getVehicleNumber());
+            if(profile.isPresent() && !profile.get().getDriverProfileId().equals(driverProfileEntity.getDriverProfileId()))
+                throw new IllegalArgumentException("Vehicle number already registered.");
+            driverProfileEntity.setVehicleNumber(request.getVehicleNumber());
+        }
+        if(request.getVehicleSeatCapacity() != null && request.getVehicleSeatCapacity() > 0)
+            driverProfileEntity.setVehicleSeatCapacity(request.getVehicleSeatCapacity());
+        if(request.getVehicleCategory() != null && !request.getVehicleCategory().isEmpty()) {
+            driverProfileEntity.setVehicleCategory(parseEnum(VehicleCategory.class, request.getVehicleCategory()));
+        }
+        if(request.getVehicleClass() != null && !request.getVehicleClass().isEmpty()) {
+            driverProfileEntity.setVehicleClass(parseEnum(VehicleClass.class, request.getVehicleClass()));
+        }
+        driverProfileEntity.setUpdatedAt(LocalDateTime.now());
+        this.driverEntityRepository.save(driverProfileEntity);
+        this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email);
+        return this.getDriverProfile(email);
+    }
+    // change driver availability status
+    @Override
+    @Transactional
+    public String changeDriverAvailabilityStatus(String email, String driverAvailabilityStatus) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccount(user);
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
+        if(driverAvailabilityStatus != null && !driverAvailabilityStatus.isEmpty()) {
+            driverProfileEntity.setDriverAvailabilityStatus(parseEnum(DriverAvailabilityStatus.class, driverAvailabilityStatus));
+        }
+        driverProfileEntity.setUpdatedAt(LocalDateTime.now());
+        this.driverEntityRepository.save(driverProfileEntity);
+        this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email);
+        return "Driver availability status changed to " + driverProfileEntity.getDriverAvailabilityStatus().toString();
+    }
     // helper methods
+    // parse enum
+        private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value) {
+            try {
+                return Enum.valueOf(enumClass, value.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                String allowed = Arrays.stream(enumClass.getEnumConstants())
+                        .map(Enum::name)
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException(
+                    "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
+            }
+        }
     // validate User's account
     private void validateUserAccount(UserEntity user){
         if(user.getIsAdminSuspendedAccount()){

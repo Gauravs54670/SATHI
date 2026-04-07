@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import CustomSelect from "@/components/CustomSelect";
 import { registerDriver, DriverRegistrationPayload } from "@/lib/api";
 
 export default function DriverRegistrationPage() {
@@ -161,19 +162,18 @@ export default function DriverRegistrationPage() {
               {/* Vehicle Category */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Vehicle Category</label>
-                <select
-                  name="vehicleCategory"
+                <CustomSelect
                   value={formData.vehicleCategory}
-                  onChange={handleChange}
-                  className="w-full bg-[#0a0a14]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all duration-300"
-                >
-                  <option value="HATCHBACK">Hatchback</option>
-                  <option value="SEDAN">Sedan</option>
-                  <option value="SUV">SUV</option>
-                  <option value="MUV">MUV</option>
-                  <option value="AUTO_RICKSHAW">Auto Rickshaw</option>
-                  <option value="BIKE">Bike</option>
-                </select>
+                  onChange={(val) => setFormData({ ...formData, vehicleCategory: val })}
+                  options={[
+                    { value: "HATCHBACK", label: "Hatchback" },
+                    { value: "SEDAN", label: "Sedan" },
+                    { value: "SUV", label: "SUV" },
+                    { value: "MUV", label: "MUV" },
+                    { value: "AUTO_RICKSHAW", label: "Auto Rickshaw" },
+                    { value: "BIKE", label: "Bike" },
+                  ]}
+                />
               </div>
 
               {/* Vehicle Class */}
