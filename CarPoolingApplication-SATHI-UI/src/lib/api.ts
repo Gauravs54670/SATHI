@@ -1,23 +1,28 @@
 // Centralized API helper for communicating with the Spring Boot backend
-// All authenticated requests use HTTP Basic Auth (Base64-encoded email:password)
+// All authenticated requests use JWT (Bearer token)
 
 const API_BASE = "/api/car-pooling";
 
-// Build the Basic Auth header from email + password
-function getAuthHeader(email: string, password: string): string {
-  return "Basic " + btoa(`${email}:${password}`);
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("sathi_token");
 }
 
-// Get stored credentials from localStorage
-function getStoredCredentials(): { email: string; password: string } | null {
-  if (typeof window === "undefined") return null;
-  const creds = localStorage.getItem("sathi_credentials");
-  if (!creds) return null;
-  try {
-    return JSON.parse(creds);
-  } catch {
-    return null;
+function getAuthHeader(): string {
+  const token = getAuthToken();
+  return token ? `Bearer ${token}` : "";
+}
+
+async function fetchWithAuth(url: string, options: RequestInit = {}) {
+  const headers = { ...options.headers, Authorization: getAuthHeader() };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("sathi_token");
+      window.location.href = "/signin";
+    }
   }
+  return res;
 }
 
 // ─── Public APIs (no auth needed) ───────────────────────────
@@ -41,30 +46,40 @@ export async function registerUser(payload: RegisterPayload) {
   return data;
 }
 
-// ─── Authenticated APIs (Basic Auth) ────────────────────────
+// ─── Authenticated APIs (JWT) ────────────────────────
 
 export async function loginAndFetchProfile(email: string, password: string) {
-  // There's no dedicated login endpoint — we "login" by trying to fetch the profile
-  // If credentials are valid, the backend returns profile data
-  const res = await fetch(`${API_BASE}/user/myProfile`, {
-    method: "GET",
-    headers: {
-      Authorization: getAuthHeader(email, password),
-    },
+  // 1. Get JWT from backend
+  const loginRes = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Invalid email or password");
-  return data;
+  const loginData = await loginRes.json();
+  if (!loginRes.ok) throw new Error(loginData.error || loginData.message || "Invalid email or password");
+  
+  const token = loginData.token;
+  if (!token) throw new Error("No token received from backend");
+
+  // Temporarily store token so subsequent fetch uses it properly in browser
+  if (typeof window !== "undefined") {
+     localStorage.setItem("sathi_token", token);
+  }
+
+  // 2. Fetch the actual profile using the JWT
+  const profileRes = await fetchWithAuth(`${API_BASE}/user/myProfile`, {
+    method: "GET",
+  });
+  const profileData = await profileRes.json();
+  if (!profileRes.ok) throw new Error(profileData.message || "Failed to fetch profile");
+  
+  return { token, profile: profileData };
 }
 
 export async function fetchProfile() {
-  const creds = getStoredCredentials();
-  if (!creds) throw new Error("Not logged in");
-  const res = await fetch(`${API_BASE}/user/myProfile`, {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/myProfile`, {
     method: "GET",
-    headers: {
-      Authorization: getAuthHeader(creds.email, creds.password),
-    },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to fetch profile");
@@ -72,15 +87,11 @@ export async function fetchProfile() {
 }
 
 export async function uploadProfilePhoto(file: File) {
-  const creds = getStoredCredentials();
-  if (!creds) throw new Error("Not logged in");
+  if (!getAuthToken()) throw new Error("Not logged in");
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_BASE}/user/uploadProfile`, {
+  const res = await fetchWithAuth(`${API_BASE}/user/uploadProfile`, {
     method: "POST",
-    headers: {
-      Authorization: getAuthHeader(creds.email, creds.password),
-    },
     body: formData,
   });
   const data = await res.json();
@@ -112,13 +123,11 @@ export interface UserProfileDTO {
 }
 
 export async function updateProfile(payload: Partial<UserProfileDTO>) {
-  const creds = getStoredCredentials();
-  if (!creds) throw new Error("Not logged in");
-  const res = await fetch(`${API_BASE}/user/update-myProfile`, {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/update-myProfile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: getAuthHeader(creds.email, creds.password),
     },
     body: JSON.stringify(payload),
   });
@@ -128,13 +137,9 @@ export async function updateProfile(payload: Partial<UserProfileDTO>) {
 }
 
 export async function deleteEmergencyContact(contactId: number) {
-  const creds = getStoredCredentials();
-  if (!creds) throw new Error("Not logged in");
-  const res = await fetch(`${API_BASE}/user/delete-emergencyContact?contactId=${contactId}`, {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/delete-emergencyContact?contactId=${contactId}`, {
     method: "DELETE",
-    headers: {
-      Authorization: getAuthHeader(creds.email, creds.password),
-    },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to delete contact");
@@ -142,13 +147,11 @@ export async function deleteEmergencyContact(contactId: number) {
 }
 
 export async function changePassword(payload: any) {
-  const creds = getStoredCredentials();
-  if (!creds) throw new Error("Not logged in");
-  const res = await fetch(`${API_BASE}/user/change-password`, {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/change-password`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: getAuthHeader(creds.email, creds.password),
     },
     body: JSON.stringify(payload),
   });

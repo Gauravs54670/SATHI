@@ -24,59 +24,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount, check if credentials exist and try to load profile
+  // On mount, check if token exists and try to load profile
   useEffect(() => {
-    const creds = localStorage.getItem("sathi_credentials");
-    if (creds) {
+    const token = localStorage.getItem("sathi_token");
+    if (token) {
       fetchProfile()
-        .then((data) => setUser(data.response))
+        .then((data) => setUser(data.response || data))
         .catch(() => {
-          localStorage.removeItem("sathi_credentials");
+          localStorage.removeItem("sathi_token");
           setUser(null);
         })
         .finally(() => setIsLoading(false));
     } else {
+      // Additionally clear legacy credentials if they exist
+      localStorage.removeItem("sathi_credentials");
       setIsLoading(false);
     }
   }, []);
 
   const login = async (email: string, password: string) => {
     const data = await loginAndFetchProfile(email, password);
-    // Store credentials for subsequent API calls
-    localStorage.setItem(
-      "sathi_credentials",
-      JSON.stringify({ email, password })
-    );
-    setUser(data.response);
+    // loginAndFetchProfile handles securely storing the JWT item now.
+    setUser(data.profile.response || data.profile);
   };
 
   const logout = () => {
-    localStorage.removeItem("sathi_credentials");
+    localStorage.removeItem("sathi_token");
+    localStorage.removeItem("sathi_credentials"); // safety cleanup
     setUser(null);
   };
 
   const refreshProfile = useCallback(async () => {
     try {
       const data = await fetchProfile();
-      setUser(data.response);
+      setUser(data.response || data);
     } catch {
       // silently fail
     }
   }, []);
 
   const updateStoredPassword = useCallback((newPassword: string) => {
-    const creds = localStorage.getItem("sathi_credentials");
-    if (creds) {
-      try {
-        const parsed = JSON.parse(creds);
-        localStorage.setItem(
-          "sathi_credentials",
-          JSON.stringify({ email: parsed.email, password: newPassword })
-        );
-      } catch {
-        // ignore
-      }
-    }
+    // Legacy support: We no longer need to update local plain-text passwords 
+    // because JWT is handled by the backend seamlessly after a password update!
   }, []);
 
   return (
