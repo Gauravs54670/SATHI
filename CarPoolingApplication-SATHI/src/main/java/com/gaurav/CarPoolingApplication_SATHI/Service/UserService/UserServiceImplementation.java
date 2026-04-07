@@ -3,6 +3,7 @@ package com.gaurav.CarPoolingApplication_SATHI.Service.UserService;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverRegistrationRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverRegistrationResponse;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.ChangePasswordRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.EmergencyContactDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
@@ -30,10 +33,16 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationReques
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationResponse;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.DuplicateEntryException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverVerificationStatus;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleCategory;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleClass;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.EmergencyContactEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
+import com.gaurav.CarPoolingApplication_SATHI.Repository.DriverEntityRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.EmergencyContactRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.UserEntityRepository;
 
@@ -42,7 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class UserServiceImplementation implements UserService, AuthService {
-
+    private final DriverEntityRepository driverEntityRepository;
     private final JavaMailSender javaMailSender;
     private final EmergencyContactRepository emergencyContactRepository;
     private final Cloudinary cloudinary;
@@ -67,12 +76,14 @@ public class UserServiceImplementation implements UserService, AuthService {
     private static final long OTP_RATE_LIMIT_MINUTES = 15;
     private static final int MAX_OTP_REQUESTS = 3;
     public UserServiceImplementation(
+        DriverEntityRepository driverEntityRepository,
         JavaMailSender javaMailSender,
         EmergencyContactRepository emergencyContactRepository,
         Cloudinary cloudinary,
         PasswordEncoder passwordEncoder,
         UserEntityRepository userEntityRepository,
         RedisTemplate<String, Object> redisTemplate) {
+            this.driverEntityRepository = driverEntityRepository;
             this.javaMailSender = javaMailSender;
             this.emergencyContactRepository = emergencyContactRepository;
             this.cloudinary = cloudinary;
@@ -340,7 +351,82 @@ public class UserServiceImplementation implements UserService, AuthService {
         log.info("Password reset successfully for user: {}", user.getUserFullName());
         return "Password reset successfully.";
     }
+    // get user roles
+    @Override
+    public Set<UserRole> getUserRoles(String email) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
+        return user.getUserRoles();
+    }
+    // register driver
+    @Override
+    public DriverRegistrationResponse registerDriver(String email, DriverRegistrationRequest request) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        if(user.getProfilePictureUrl() == null || user.getProfilePictureUrl().isBlank())
+            throw new IllegalArgumentException("Profile picture is required. Please upload your photo first.");
+        validateUserAccountStatus(user);
+        boolean isProfileExist = this.driverEntityRepository.findByUserEmail(email).isPresent();
+        if(isProfileExist)
+            throw new DuplicateEntryException("Driver profile already registered.");
+        boolean isLicenseNumberExist = this.driverEntityRepository.existsByLicenseNumber(request.getLicenseNumber());
+        if(isLicenseNumberExist)
+            throw new DuplicateEntryException("License number already exists.");
+        boolean isVehicleNumberExist = this.driverEntityRepository.existsByVehicleNumber(request.getVehicleNumber());
+        if(isVehicleNumberExist)
+            throw new DuplicateEntryException("Vehicle number already exists.");
+        VehicleClass vehicleClass = parseEnum(VehicleClass.class, request.getVehicleClass());
+        VehicleCategory vehicleCategory = parseEnum(VehicleCategory.class, request.getVehicleCategory());
+        DriverProfileEntity driverProfileEntity = DriverProfileEntity.builder()
+            .user(user)
+            .licenseNumber(request.getLicenseNumber())
+            .licenseExpirationDate(request.getLicenseExpirationDate())
+            .vehicleModel(request.getVehicleModel())
+            .vehicleNumber(request.getVehicleNumber())
+            .vehicleSeatCapacity(request.getVehicleSeatCapacity())
+            .vehicleCategory(vehicleCategory)
+            .vehicleClass(vehicleClass)
+            .driverAvailabilityStatus(DriverAvailabilityStatus.OFF_DUTY)
+            .driverVerificationStatus(DriverVerificationStatus.PENDING)
+            .totalCompletedRides(0)
+            .totalCancelledRides(0)
+            .registeredAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+        user.getUserRoles().add(UserRole.DRIVER);
+        this.userEntityRepository.save(user);
+        DriverProfileEntity savedDriverProfile = this.driverEntityRepository.save(driverProfileEntity);
+        return DriverRegistrationResponse.builder()
+            .licenseNumber(savedDriverProfile.getLicenseNumber())
+            .licenseExpirationDate(savedDriverProfile.getLicenseExpirationDate())
+            .vehicleModel(savedDriverProfile.getVehicleModel())
+            .vehicleNumber(savedDriverProfile.getVehicleNumber())
+            .vehicleSetCapacity(savedDriverProfile.getVehicleSeatCapacity())
+            .vehicleCategory(savedDriverProfile.getVehicleCategory())
+            .vehicleClass(savedDriverProfile.getVehicleClass())
+            .driverAvailabilityStatus(savedDriverProfile.getDriverAvailabilityStatus())
+            .driverVerificationStatus(savedDriverProfile.getDriverVerificationStatus())
+            .totalCompletedRides(savedDriverProfile.getTotalCompletedRides())
+            .totalCancelledRides(savedDriverProfile.getTotalCancelledRides())
+            .registeredAt(savedDriverProfile.getRegisteredAt())
+            .build();
+    }
     // helper methods
+    // parse enum
+    private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value) {
+        try {
+            return Enum.valueOf(enumClass, value.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            String allowed = Arrays.stream(enumClass.getEnumConstants())
+                    .map(Enum::name)
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException(
+                "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
+        }
+    }
+    // helper methods
+    // validate User account
     private void validateUserAccountStatus(UserEntity user) {
         if (user.getAccountStatus() == UserAccountStatus.INACTIVE)
             throw new AccessDeniedException("User account is inactive. Please verify your account first.");

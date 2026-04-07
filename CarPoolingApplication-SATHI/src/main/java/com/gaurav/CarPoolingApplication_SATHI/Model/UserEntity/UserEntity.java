@@ -55,7 +55,10 @@ public class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserAccountStatus accountStatus;
+    @Builder.Default
     private Boolean isAdminSuspendedAccount = false;
+    @Builder.Default
+    private Boolean isEmailVerified = false;
     @Enumerated(EnumType.STRING)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
@@ -64,8 +67,11 @@ public class UserEntity {
     @Column(name = "user_role", length = 20)
     private Set<UserRole> userRoles;
     @Column(columnDefinition = "DOUBLE DEFAULT 0.0")
+    @Builder.Default
     private Double averageRating = 0.0;
+    @Builder.Default
     private Integer totalRatingsCount = 0;
+    @Builder.Default
     private Integer totalRidesCompleted = 0;
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EmergencyContactEntity> emergencyContacts; 

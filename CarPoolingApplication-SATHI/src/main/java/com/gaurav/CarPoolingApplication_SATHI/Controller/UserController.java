@@ -1,6 +1,7 @@
 package com.gaurav.CarPoolingApplication_SATHI.Controller;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
@@ -15,9 +16,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverRegistrationRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverRegistrationResponse;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.ChangePasswordRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateRequest;
+import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
 import com.gaurav.CarPoolingApplication_SATHI.Service.UserService.UserService;
 
 import jakarta.validation.Valid;
@@ -77,6 +81,26 @@ public class UserController {
         this.userService.changeAccountPassword(email, request);
         return new ResponseEntity<>(Map.of(
                 "message", "Password changed successfully"
+        ), HttpStatus.OK);
+    }
+    @GetMapping("/myRoles")
+    public ResponseEntity<?> getUserRoles(Authentication authentication) {
+        String email = authentication.getName();
+        Set<UserRole> roles = this.userService.getUserRoles(email);
+        return new ResponseEntity<>(Map.of(
+                "message", "Roles fetched successfully",
+                "response", roles
+        ), HttpStatus.OK);
+    }
+    @PostMapping("/register-driver")
+    public ResponseEntity<?> registerDriver(
+        Authentication authentication,
+        @Valid @RequestBody DriverRegistrationRequest request) {
+        String email = authentication.getName();
+        DriverRegistrationResponse response = this.userService.registerDriver(email, request);
+        return new ResponseEntity<>(Map.of(
+                "message", "Driver registered successfully",
+                "response", response
         ), HttpStatus.OK);
     }
 }
