@@ -22,5 +22,6 @@ public interface UserService {
     void deleteEmergencyContact(String email, Long contactId);
     void changeAccountPassword(String email, ChangePasswordRequest request);
     Set<UserRole> getUserRoles(String email);
+    String verifyEmail(String email, String otp);
     DriverRegistrationResponse registerDriver(String email,DriverRegistrationRequest request);
 }

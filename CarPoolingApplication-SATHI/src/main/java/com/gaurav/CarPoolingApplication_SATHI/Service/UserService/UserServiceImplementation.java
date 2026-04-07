@@ -111,7 +111,8 @@ public class UserServiceImplementation implements UserService, AuthService {
         .phoneNumber(request.getPhoneNumber())
         .password(this.passwordEncoder.encode(request.getPassword()))
         .gender(request.getGender())
-        .accountStatus(UserAccountStatus.ACTIVE)
+        .accountStatus(UserAccountStatus.INACTIVE)
+        .isAdminSuspendedAccount(false)
         .userRoles(Set.of(UserRole.USER, UserRole.PASSENGER))
         .build();
         user = this.userEntityRepository.save(user);
@@ -295,7 +296,6 @@ public class UserServiceImplementation implements UserService, AuthService {
     public String requestOtp(String email) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("User not found."));
-        validateUserAccountStatus(user);
         String countKey = USER_OTP_REQ_COUNT_PREFIX + email;
         Integer reqCount = (Integer) redisTemplate.opsForValue().get(countKey);
         if (reqCount != null && reqCount >= MAX_OTP_REQUESTS) {
@@ -359,14 +359,35 @@ public class UserServiceImplementation implements UserService, AuthService {
         validateUserAccountStatus(user);
         return user.getUserRoles();
     }
+    // verify email
+    @Override
+    public String verifyEmail(String email, String otp) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        String otpKey = USER_OTP_CACHE_PREFIX + email;
+        String storedOtp = (String) redisTemplate.opsForValue().get(otpKey);
+        if (storedOtp == null)
+            throw new AccessDeniedException("OTP expired or invalid. Request new OTP.");
+        if (!storedOtp.equals(otp))
+            throw new AccessDeniedException("Invalid OTP.");
+        redisTemplate.delete(otpKey);
+        user.setAccountStatus(UserAccountStatus.ACTIVE);
+        user.setIsEmailVerified(true);
+        user.setAccountUpdatedAt(LocalDateTime.now());
+        this.userEntityRepository.save(user);
+        redisTemplate.delete(USER_OTP_REQ_COUNT_PREFIX + email);
+        redisTemplate.delete(USER_PROFILE_CACHE_PREFIX + email); 
+        log.info("Email verified successfully for user: {}", user.getUserFullName());
+        return "Email verified successfully.";
+    }
     // register driver
     @Override
     public DriverRegistrationResponse registerDriver(String email, DriverRegistrationRequest request) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validateUserAccountStatus(user);
         if(user.getProfilePictureUrl() == null || user.getProfilePictureUrl().isBlank())
             throw new IllegalArgumentException("Profile picture is required. Please upload your photo first.");
-        validateUserAccountStatus(user);
         boolean isProfileExist = this.driverEntityRepository.findByUserEmail(email).isPresent();
         if(isProfileExist)
             throw new DuplicateEntryException("Driver profile already registered.");
@@ -411,26 +432,25 @@ public class UserServiceImplementation implements UserService, AuthService {
             .totalCancelledRides(savedDriverProfile.getTotalCancelledRides())
             .registeredAt(savedDriverProfile.getRegisteredAt())
             .build();
-    }
-    // helper methods
-    // parse enum
-    private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value) {
-        try {
-            return Enum.valueOf(enumClass, value.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            String allowed = Arrays.stream(enumClass.getEnumConstants())
-                    .map(Enum::name)
-                    .collect(Collectors.joining(", "));
-            throw new IllegalArgumentException(
-                "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
         }
-    }
-    // helper methods
-    // validate User account
+        // helper methods
+        // parse enum
+        private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value) {
+            try {
+                return Enum.valueOf(enumClass, value.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                String allowed = Arrays.stream(enumClass.getEnumConstants())
+                        .map(Enum::name)
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException(
+                    "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
+            }
+        }
+        // validate User account
     private void validateUserAccountStatus(UserEntity user) {
         if (user.getAccountStatus() == UserAccountStatus.INACTIVE)
-            throw new AccessDeniedException("User account is inactive. Please verify your account first.");
-        if (user.getAccountStatus() == UserAccountStatus.SUSPENDED)
+            throw new AccessDeniedException("User account is inactive. Please verify your email first.");
+        if (user.getIsAdminSuspendedAccount() || user.getAccountStatus() == UserAccountStatus.SUSPENDED)
             throw new AccessDeniedException("User account is suspended by ADMIN.");
         if (user.getAccountStatus() == UserAccountStatus.DELETED)
             throw new AccessDeniedException("User account is deleted.");
@@ -438,4 +458,5 @@ public class UserServiceImplementation implements UserService, AuthService {
     private String generateOtp() {
         return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
+
 }

@@ -48,8 +48,10 @@ public class DriverServiceImplementation implements DriverService{
         this.validateUserAccount(user);
         DriverProfileDTO profile = this.driverEntityRepository.findDriverProfileByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
-        profile.setAverageRating(profile.getAverageRating() != null? profile.getAverageRating() : 0.0);
-        profile.setTotalRatingsCount(profile.getTotalRatingsCount() != null? profile.getTotalRatingsCount() : 0);
+        if(profile.getAverageRating() == null)
+            profile.setAverageRating(0.0);
+        if(profile.getTotalRatingsCount() == null)
+            profile.setTotalRatingsCount(0);
         redisTemplate.opsForValue().set(cacheKey, profile, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         log.info("Driver profile fetched for: {}", email);
         return profile;

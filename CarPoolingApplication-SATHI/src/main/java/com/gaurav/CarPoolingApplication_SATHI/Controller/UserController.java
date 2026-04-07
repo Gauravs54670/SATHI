@@ -92,6 +92,16 @@ public class UserController {
                 "response", roles
         ), HttpStatus.OK);
     }
+    @PostMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(
+        Authentication authentication,
+        @RequestParam("otp") String otp) {
+        String email = authentication.getName();
+        String message = this.userService.verifyEmail(email, otp);
+        return new ResponseEntity<>(Map.of(
+                "message", message
+        ), HttpStatus.OK);
+    }
     @PostMapping("/register-driver")
     public ResponseEntity<?> registerDriver(
         Authentication authentication,
