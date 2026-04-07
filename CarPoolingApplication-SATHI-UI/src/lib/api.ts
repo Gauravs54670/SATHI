@@ -71,7 +71,7 @@ export async function loginAndFetchProfile(email: string, password: string) {
     method: "GET",
   });
   const profileData = await profileRes.json();
-  if (!profileRes.ok) throw new Error(profileData.message || "Failed to fetch profile");
+  if (!profileRes.ok) throw new Error(profileData.exceptionMessage || profileData.message || "Failed to fetch profile");
   
   return { token, profile: profileData };
 }
@@ -82,7 +82,7 @@ export async function fetchProfile() {
     method: "GET",
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to fetch profile");
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch profile");
   return data;
 }
 
@@ -179,4 +179,62 @@ export async function resetPassword(email: string, otp: string, newPassword: str
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to reset password");
   return data;
+}
+
+// ─── Verification & Driver APIs (Authenticated) ────────────────────────
+
+export async function sendOtpForEmailVerification(email: string) {
+  return requestOtp(email); // Reuses the exact same backend logic
+}
+
+export async function verifyEmailOtp(otp: string) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/verify-email?otp=${encodeURIComponent(otp)}`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to verify email");
+  return data;
+}
+
+export async function fetchUserRoles() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/myRoles`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch roles");
+  return data.response; // returns string[]
+}
+
+export interface DriverRegistrationPayload {
+  licenseNumber: string;
+  licenseExpirationDate: string; // YYYY-MM-DD
+  vehicleModel: string;
+  vehicleNumber: string;
+  vehicleSeatCapacity: number;
+  vehicleCategory: string;
+  vehicleClass: string;
+}
+
+export async function registerDriver(payload: DriverRegistrationPayload) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/user/register-driver`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to register driver");
+  return data.response;
+}
+
+export async function fetchDriverProfile() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/myProfile`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch driver profile");
+  return data.data; // Note: Driver Controller maps this uniquely under "data"
 }

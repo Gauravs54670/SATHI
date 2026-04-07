@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { fetchUserRoles } from "@/lib/api";
 
 interface AvatarDropdownProps {
   isOpen: boolean;
@@ -13,6 +14,15 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
   const { logout } = useAuth();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isDriver, setIsDriver] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchUserRoles().then(roles => {
+        setIsDriver(roles.includes("DRIVER"));
+      }).catch(() => setIsDriver(false));
+    }
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -61,6 +71,24 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
         </svg>
         Update Profile
       </button>
+      {isDriver && (
+        <button
+          onClick={() => {
+            router.push("/driver/profile");
+            onClose();
+          }}
+          className="w-full text-left px-4 py-2.5 text-sm text-slate-200
+            hover:bg-white/5 transition-colors flex items-center gap-2"
+        >
+          <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+          </svg>
+          Driver Profile
+        </button>
+      )}
       <div className="border-t border-white/5 my-1" />
       <button
         onClick={() => {

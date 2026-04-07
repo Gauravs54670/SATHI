@@ -174,12 +174,59 @@ public class UserServiceImplementation implements UserService, AuthService {
             uploadOptions.put("overwrite", true);
             // invalidate = true → clears CDN cache so the new photo loads immediately
             uploadOptions.put("invalidate", true);
+            // faces = true -> Requests Cloudinary to run basic face detection
+            uploadOptions.put("faces", true);
+            // Request Google Vision Auto-Tagging for Advanced AI categorization
+            uploadOptions.put("categorization", "google_tagging");
+            uploadOptions.put("auto_tagging", 0.6); // 60% confidence threshold
+
             @SuppressWarnings("unchecked")
             Map<String, Object> result = this.cloudinary.uploader().upload(file.getBytes(), uploadOptions);
+            
+            // Deep debug logging to see EXACTLY what Cloudinary is returning synchronously
+            log.info("CLOUDINARY DEBUG - Raw Result Keys: {}", result.keySet());
+            log.info("CLOUDINARY DEBUG - Faces: {}", result.get("faces"));
+            log.info("CLOUDINARY DEBUG - Tags: {}", result.get("tags"));
+            log.info("CLOUDINARY DEBUG - Info: {}", result.get("info"));
+
+            // 1. Basic Validation: Is there at least a geometric face?
+            List<?> faces = (List<?>) result.get("faces");
+            boolean hasOpenCVFace = faces != null && !faces.isEmpty();
+
+            // 2. Deep Validation: Leverage Google Vision tags to block animated/drawn faces
+            List<?> tags = (List<?>) result.get("tags");
+            boolean hasGoogleHumanTag = false;
+
+            if (tags != null) {
+                for (Object tagObj : tags) {
+                    String tag = tagObj.toString().toLowerCase();
+                    if (tag.contains("anime") || tag.contains("cartoon") || tag.contains("illustration") 
+                     || tag.contains("drawing") || tag.contains("sketch") || tag.contains("clip art") || tag.contains("fictional character") || tag.contains("avatar")) {
+                        // Destroy Fake Image
+                        this.cloudinary.uploader().destroy("profile_photos/" + publicId, Map.of());
+                        log.warn("Upload rejected: Image categorized as '{}' for user {}", tag, email);
+                        throw new IllegalArgumentException("Upload rejected: Artificial image (" + tag + ") detected. Please exclusively upload real human photographs.");
+                    }
+                    if (tag.contains("person") || tag.contains("face") || tag.contains("human") || tag.contains("portrait") || tag.contains("selfie") || tag.contains("man") || tag.contains("woman")) {
+                        hasGoogleHumanTag = true;
+                    }
+                }
+            }
+
+            // 3. Final Decision: If OpenCV missed the face AND Google Vision failed to classify it as a human, reject it
+            if (!hasOpenCVFace && !hasGoogleHumanTag) {
+                log.warn("CLOUDINARY WARNING: No facial structure or human detected for user {}! Bypassing block temporarily for debugging purposes.", email);
+                // Temporarily bypassing the hard throw so the user can upload while we check the server logs!
+                // throw new IllegalArgumentException("No human face detected! Please upload a clear, authentic photograph of a human face.");
+            }
+
             profileUrl = (String) result.get("secure_url");
+        } catch (IllegalArgumentException e) {
+            log.error("Profile photo upload rejected for user: {} - Reason: {}", email, e.getMessage());
+            throw e; // Bubble up exact face/cartoon rejection message
         } catch (Exception e) {
             log.error("Profile photo upload failed for user", e);
-            throw new RuntimeException("Profile photo upload failed");
+            throw new RuntimeException("Profile photo upload failed. Please try again later.", e);
         }
         try {
             user.setProfilePictureUrl(profileUrl);

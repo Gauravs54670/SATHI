@@ -65,6 +65,15 @@ export default function ProfilePage() {
       <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 py-10">
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group w-fit"
+        >
+          <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span className="font-medium text-sm">Back to Dashboard</span>
+        </button>
         <div className="animate-fade-in-up">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h1 className="text-2xl font-bold text-white">My Profile</h1>

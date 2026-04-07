@@ -68,7 +68,7 @@ public class DriverServiceImplementation implements DriverService{
         if(!user.getIsEmailVerified()){
             throw new AccessDeniedException("User email is not verified.");
         }
-        if(user.getUserRoles().contains(UserRole.DRIVER)){
+        if(!user.getUserRoles().contains(UserRole.DRIVER)){
             throw new AccessDeniedException("User is not a driver.");
         }
     }
