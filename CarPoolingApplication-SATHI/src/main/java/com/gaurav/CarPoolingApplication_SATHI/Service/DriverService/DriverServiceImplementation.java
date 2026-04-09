@@ -1,5 +1,6 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -13,11 +14,15 @@ import org.springframework.stereotype.Service;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverVerificationStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleCategory;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleClass;
+import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
@@ -29,6 +34,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service 
 public class DriverServiceImplementation implements DriverService{
+    // Constants
+    private static final double EARTH_RADIUS_KM = 6371.0;
+    private static BigDecimal BASE_PRICE = BigDecimal.valueOf(10.0);
     // Redis key prefix for user profiles
     private static final String DRIVER_PROFILE_CACHE_PREFIX = "driver:profile:";
     // Cache TTL (time-to-live) in minutes
@@ -118,7 +126,92 @@ public class DriverServiceImplementation implements DriverService{
         this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email);
         return "Driver availability status changed to " + driverProfileEntity.getDriverAvailabilityStatus().toString();
     }
+    // post ride
+    @Override
+    @Transactional
+    public RidePostResponseDTO postRide(String email, RideRequestDTO rideRequestDTO){
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfileEntity.getUser();
+        this.validateUserAccount(user);
+        if(driverProfileEntity.getDriverAvailabilityStatus() == DriverAvailabilityStatus.NOT_AVAILABLE || 
+                driverProfileEntity.getDriverAvailabilityStatus() == DriverAvailabilityStatus.OFF_DUTY)
+            throw new IllegalArgumentException("Driver is not available to post a ride. "
+                + "Please change your availability status to AVAILABLE.");
+        // 1. Basic Validations (already partially handled by @Valid, but keep service-level logic)
+        if(rideRequestDTO.getAvailableSeats() > driverProfileEntity.getVehicleSeatCapacity())
+            throw new IllegalArgumentException("Available seats (" + rideRequestDTO.getAvailableSeats() + 
+                ") exceed vehicle capacity (" + driverProfileEntity.getVehicleSeatCapacity() + ").");
+        
+        // 2. Calculate Distance and Fare
+        double distance;
+        if (rideRequestDTO.getTotalDistanceKm() != null && rideRequestDTO.getTotalDistanceKm() > 0) {
+            distance = rideRequestDTO.getTotalDistanceKm();
+            log.info("Using road distance from frontend: {} km", distance);
+        } else {
+            distance = calculateDistanceByHaverSineFormula(
+                rideRequestDTO.getSourceLat(), rideRequestDTO.getSourceLong(),
+                rideRequestDTO.getDestinationLat(), rideRequestDTO.getDestinationLong()
+            );
+            log.info("Using straight-line fallback distance: {} km", distance);
+        }
+
+        BigDecimal distanceBD = BigDecimal.valueOf(distance);
+        BigDecimal estimatedFare = distanceBD.multiply(rideRequestDTO.getPricePerKm());
+
+        // 3. Log the Full Request for Backend Verification
+        log.info("RIDE POST REQUEST [TEST MODE] - User: {}, Source: {}, Destination: {}, Distance: {} km, Fare: ₹{}, RoutePath: {}", 
+            email, rideRequestDTO.getBoardingAddress(), rideRequestDTO.getDestinationAddress(), 
+            String.format("%.2f", distance), estimatedFare.setScale(2, java.math.RoundingMode.HALF_UP),
+            rideRequestDTO.getRoutePath() != null ? "RECEIVED" : "MISSING");
+
+        // 4. Return Mapped Response
+        RidePostResponseDTO response = new RidePostResponseDTO();
+        response.setRideId(0L); // Mock ID
+        response.setDriverName(user.getUserFullName());
+        response.setSourceLat(rideRequestDTO.getSourceLat());
+        response.setSourceLong(rideRequestDTO.getSourceLong());
+        response.setBoardingAddress(rideRequestDTO.getBoardingAddress());
+        response.setDestinationLat(rideRequestDTO.getDestinationLat());
+        response.setDestinationLong(rideRequestDTO.getDestinationLong());
+        response.setDestinationAddress(rideRequestDTO.getDestinationAddress());
+        response.setDepartureTime(rideRequestDTO.getDepartureTime());
+        response.setAvailableSeats(rideRequestDTO.getAvailableSeats());
+        response.setPricePerKm(rideRequestDTO.getPricePerKm());
+        response.setEstimatedTotalDistance(distanceBD.setScale(2, java.math.RoundingMode.HALF_UP));
+        response.setEstimatedRideFare(estimatedFare.setScale(2, java.math.RoundingMode.HALF_UP));
+        response.setRoutePath(rideRequestDTO.getRoutePath());
+
+        return response;
+    }
     // helper methods
+    // calculate price per km of ride
+    private BigDecimal calculatePricePerKmOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
+        switch (vehicleCategory) {
+            case HATCHBACK -> BASE_PRICE = BigDecimal.valueOf(6);
+            case SEDAN -> BASE_PRICE = BigDecimal.valueOf(8);
+            case SUV -> BASE_PRICE = BigDecimal.valueOf(10);
+            case MUV -> BASE_PRICE = BigDecimal.valueOf(9);
+            case AUTO_RICKSHAW -> BASE_PRICE = BigDecimal.valueOf(5);
+            case BIKE -> BASE_PRICE = BigDecimal.valueOf(4);
+            default -> throw new IllegalArgumentException("Unsupported vehicle category.");
+        }
+        return switch (vehicleClass) {
+            case ECONOMY -> BASE_PRICE;
+            case STANDARD -> BASE_PRICE.add(BigDecimal.valueOf(2));
+            case PREMIUM -> BASE_PRICE.add(BigDecimal.valueOf(4));
+        };
+    }
+    // calculate distance by Haversine formula
+    private double calculateDistanceByHaverSineFormula(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_KM * c;
+    }
     // parse enum
         private <T extends Enum<T>> T parseEnum(Class<T> enumClass, String value) {
             try {

@@ -59,8 +59,7 @@ export default function DashboardPage() {
     try {
       const roles: string[] = await fetchUserRoles();
       if (roles.includes("DRIVER")) {
-        setToastMessage("Ride Creation Feature Coming Soon!");
-        setTimeout(() => setToastMessage(null), 3000);
+        router.push("/ride/post");
       } else {
         router.push("/driver/register");
       }

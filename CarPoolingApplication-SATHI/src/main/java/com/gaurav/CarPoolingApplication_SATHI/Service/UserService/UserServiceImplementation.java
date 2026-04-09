@@ -140,6 +140,7 @@ public class UserServiceImplementation implements UserService, AuthService {
         // Cache miss — fetch from database
         UserProfileDTO profileDTO = this.userEntityRepository.findUserProfileByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
+        
         List<EmergencyContactDTO> emergencyContacts = this.emergencyContactRepository
                     .findEmergencyContactsByEmail(email);
         profileDTO.setEmergencyContacts(
@@ -403,10 +404,8 @@ public class UserServiceImplementation implements UserService, AuthService {
     public Set<UserRole> getUserRoles(String email) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("User not found."));
-        validateUserAccountStatus(user);
         return user.getUserRoles();
     }
-    // verify email
     @Override
     public String verifyEmail(String email, String otp) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
@@ -427,12 +426,15 @@ public class UserServiceImplementation implements UserService, AuthService {
         log.info("Email verified successfully for user: {}", user.getUserFullName());
         return "Email verified successfully.";
     }
+
     // register driver
     @Override
     public DriverRegistrationResponse registerDriver(String email, DriverRegistrationRequest request) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("User not found."));
         validateUserAccountStatus(user);
+        if(!user.getIsEmailVerified())
+            throw new AccessDeniedException("User email is not verified. Please verify your email first.");
         if(user.getProfilePictureUrl() == null || user.getProfilePictureUrl().isBlank())
             throw new IllegalArgumentException("Profile picture is required. Please upload your photo first.");
         boolean isProfileExist = this.driverEntityRepository.findByUserEmail(email).isPresent();

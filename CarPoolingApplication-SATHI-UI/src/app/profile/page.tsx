@@ -6,6 +6,9 @@ import { useAuth } from "@/context/AuthContext";
 import { uploadProfilePhoto } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Avatar from "@/components/Avatar";
+import EmailVerificationModal from "@/components/EmailVerificationModal";
+import ImageViewModal from "@/components/ImageViewModal";
+import ImageCropModal from "@/components/ImageCropModal";
 
 export default function ProfilePage() {
   const { user, isLoggedIn, isLoading, refreshProfile } = useAuth();
@@ -15,6 +18,14 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  
+  // Photo management states
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false);
+  const [selectedFileSrc, setSelectedFileSrc] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -23,19 +34,46 @@ export default function ProfilePage() {
     }
   }, [isLoading, isLoggedIn, router]);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle clicks outside of menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowPhotoMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Show preview immediately
     const reader = new FileReader();
-    reader.onloadend = () => setPreview(reader.result as string);
+    reader.onload = () => {
+      setSelectedFileSrc(reader.result as string);
+      setIsCropModalOpen(true);
+      setShowPhotoMenu(false);
+    };
     reader.readAsDataURL(file);
+    
+    // Reset input so the same file can be picked again
+    e.target.value = "";
+  };
 
-    // Upload to backend
+  const handleCropComplete = async (croppedBlob: Blob) => {
     setUploading(true);
     setUploadSuccess(false);
+    setIsCropModalOpen(false);
+    
+    // Create preview from blob
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result as string);
+    reader.readAsDataURL(croppedBlob);
+
     try {
+      // Convert Blob to File
+      const file = new File([croppedBlob], "profile-photo.jpg", { type: "image/jpeg" });
       await uploadProfilePhoto(file);
       await refreshProfile();
       setUploadSuccess(true);
@@ -98,22 +136,55 @@ export default function ProfilePage() {
               <div className="glass-card p-6 flex flex-col items-center text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-br from-indigo-500/20 to-purple-500/20" />
                 
-                <div className="relative mt-6 group">
+                <div className="relative mt-6 group" ref={menuRef}>
                   <Avatar
                     name={user.userFullName}
                     email={user.email}
                     imageUrl={preview || user.profilePictureUrl}
                     size={120}
                     className="ring-4 ring-bg-card shadow-xl"
+                    onClick={() => setShowPhotoMenu(!showPhotoMenu)}
                   />
+                  
+                  {/* Photo Action Menu */}
+                  {showPhotoMenu && (
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 glass-card border border-white/10 shadow-2xl py-2 z-10 animate-fade-in-up">
+                      <button
+                        onClick={() => {
+                          setIsViewModalOpen(true);
+                          setShowPhotoMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Show Photo
+                      </button>
+                      <button
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                          setShowPhotoMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Change Photo
+                      </button>
+                    </div>
+                  )}
+
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center
-                      opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                    className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center
+                      border-2 border-[#0a0a14] text-white cursor-pointer hover:bg-indigo-400 font-bold transition-colors"
                   >
-                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                 </div>
@@ -166,13 +237,52 @@ export default function ProfilePage() {
               <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Account Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4">
-                  <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
-                    <p className="text-xs text-slate-500 font-medium mb-1">Email</p>
-                    <p className="text-white break-all">{user.email}</p>
+                  <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs text-slate-500 font-medium">Email</p>
+                        {user.isEmailVerified ? (
+                          <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                            VERIFIED
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-red-400 flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            NOT VERIFIED
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-white break-all">{user.email}</p>
+                    </div>
+                    {!user.isEmailVerified && (
+                      <button
+                        onClick={() => setIsEmailModalOpen(true)}
+                        className="mt-3 w-full py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider
+                          bg-indigo-500/10 text-indigo-400 border border-indigo-500/20
+                          hover:bg-indigo-500 hover:text-white transition-all duration-300"
+                      >
+                        Verify Email
+                      </button>
+                    )}
                   </div>
-                  <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
-                    <p className="text-xs text-slate-500 font-medium mb-1">Phone Number</p>
-                    <p className="text-white">{user.phoneNumber}</p>
+                  <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs text-slate-500 font-medium mb-1">Phone Number</p>
+                      <p className="text-white">{user.phoneNumber}</p>
+                    </div>
+                    <button
+                      onClick={() => window.alert("Phone verification feature coming soon!")}
+                      className="mt-3 w-full py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider
+                        bg-white/5 text-slate-400 border border-white/10
+                        hover:bg-white/10 hover:text-white transition-all duration-300"
+                    >
+                      Verify Phone Number
+                    </button>
                   </div>
                   <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
                     <p className="text-xs text-slate-500 font-medium mb-1">Gender</p>
@@ -181,7 +291,7 @@ export default function ProfilePage() {
                   <div className="bg-white/[0.02] rounded-lg p-4 border border-white/5">
                     <p className="text-xs text-slate-500 font-medium mb-1">Member Since</p>
                     <p className="text-white">
-                      {new Date(user.accountCratedAt).toLocaleDateString("en-US", {
+                      {new Date(user.accountCreatedAt).toLocaleDateString("en-US", {
                         year: 'numeric', month: 'long', day: 'numeric'
                       })}
                     </p>
@@ -243,6 +353,37 @@ export default function ProfilePage() {
           </div>
         </div>
       </main>
+
+      {/* Email Verification Flow */}
+      <EmailVerificationModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        onSuccess={() => {
+          setIsEmailModalOpen(false);
+          refreshProfile();
+        }}
+      />
+
+      {/* Profile Photo Management */}
+      <ImageViewModal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        imageUrl={user.profilePictureUrl || ""}
+        name={user.userFullName}
+      />
+
+      {selectedFileSrc && (
+        <ImageCropModal
+            isOpen={isCropModalOpen}
+            onClose={() => {
+                setIsCropModalOpen(false);
+                setSelectedFileSrc(null);
+            }}
+            imageSrc={selectedFileSrc}
+            onCropComplete={handleCropComplete}
+            isUploading={uploading}
+        />
+      )}
     </div>
   );
 }

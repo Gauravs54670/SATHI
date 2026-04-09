@@ -111,7 +111,7 @@ export interface UserProfileDTO {
   email: string;
   phoneNumber: string;
   userAccountStatus: string;
-  accountCratedAt: string;
+  accountCreatedAt: string;
   accountUpdatedAt: string;
   profilePictureUrl?: string;
   gender?: string;
@@ -120,6 +120,7 @@ export interface UserProfileDTO {
   totalRatingsCount?: number;
   totalRidesCompleted?: number;
   emergencyContacts?: EmergencyContactDTO[];
+  isEmailVerified: boolean;
 }
 
 export async function updateProfile(payload: Partial<UserProfileDTO>) {
@@ -246,6 +247,34 @@ export interface DriverProfileUpdateRequest {
   vehicleSeatCapacity?: number;
   vehicleCategory?: string;
   vehicleClass?: string;
+}
+
+export interface RideRequestPayload {
+  sourceLat: number;
+  sourceLong: number;
+  boardingAddress: string;
+  sourcePlaceName?: string;
+  destinationLat: number;
+  destinationLong: number;
+  destinationAddress: string;
+  destinationPlaceName?: string;
+  departureTime: string; // ISO string
+  availableSeats: number;
+  pricePerKm: number;
+  routePath?: string;
+  totalDistanceKm?: number;
+}
+
+export async function postRide(payload: RideRequestPayload) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/post-ride`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to post ride");
+  return data;
 }
 
 export async function updateDriverProfile(payload: DriverProfileUpdateRequest) {

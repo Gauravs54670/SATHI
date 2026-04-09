@@ -21,12 +21,14 @@ public interface UserEntityRepository extends JpaRepository<UserEntity, Long> {
                 user.phoneNumber,
                 user.accountStatus,
                 user.accountCreatedAt,
+                user.accountUpdatedAt,
                 user.profilePictureUrl,
                 user.gender,
                 user.bio,
                 user.averageRating,
                 user.totalRatingsCount,
-                user.totalRidesCompleted
+                user.totalRidesCompleted,
+                user.isEmailVerified
             )
             FROM UserEntity user
             WHERE user.email = :email

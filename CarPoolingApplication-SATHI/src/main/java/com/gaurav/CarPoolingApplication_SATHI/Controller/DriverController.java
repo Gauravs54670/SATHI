@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,7 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.DriverService.DriverService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/driver")
@@ -54,6 +59,17 @@ public class DriverController {
         return new ResponseEntity<>(Map.of(
             "status", "success",
             "message", message
+        ), HttpStatus.OK);
+    }
+    // post ride
+    @PostMapping("/post-ride")
+    public ResponseEntity<?> postRide(Authentication authentication, @Valid @RequestBody RideRequestDTO rideRequestDTO) {
+        String email = authentication.getName();
+        RidePostResponseDTO response = this.driverService.postRide(email, rideRequestDTO);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride request submitted successfully (Testing Mode)",
+            "data", response
         ), HttpStatus.OK);
     }
 }
