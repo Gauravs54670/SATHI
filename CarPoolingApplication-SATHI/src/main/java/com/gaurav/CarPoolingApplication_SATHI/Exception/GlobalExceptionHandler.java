@@ -58,4 +58,12 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now());
         return new ResponseEntity<>(exceptionDescription, HttpStatus.BAD_REQUEST);
     }
+    @ExceptionHandler(NoActiveRideFoundException.class)
+    public ResponseEntity<ExceptionDescription> handleNoActiveRideFoundException(NoActiveRideFoundException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.NOT_FOUND.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.NOT_FOUND);
+    }
 }

@@ -298,3 +298,33 @@ export async function changeDriverAvailabilityStatus(status: string) {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to update availability status");
   return data.message;
 }
+
+export async function checkHasActiveRide() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/has-active-ride`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to check active rides");
+  return data.data; // returns boolean
+}
+
+export async function fetchActiveRides() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/active-ride`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch active rides");
+  return data.data; // returns DriverPostedRides[]
+}
+
+export async function logoutUser(email: string) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/auth/logout?email=${encodeURIComponent(email)}`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Logout failed");
+  return data.message;
+}

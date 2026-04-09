@@ -60,6 +60,9 @@ public class UserServiceImplementation implements UserService, AuthService {
     private final RedisTemplate<String, Object> redisTemplate;
     // Redis key prefix for user profiles
     private static final String USER_PROFILE_CACHE_PREFIX = "user:profile:";
+    private static final String DRIVER_PROFILE_CACHE_PREFIX = "driver:profile:";
+    private static final String DRIVER_RIDES_CACHE_PREFIX = "driver:rides:";
+    private static final String DRIVER_HAS_RIDE_CACHE_PREFIX = "driver:has-active-ride:";
     // Cache TTL (time-to-live) in minutes
     private static final long CACHE_TTL_MINUTES = 30;
     // Secure random generator for OTP
@@ -481,6 +484,29 @@ public class UserServiceImplementation implements UserService, AuthService {
             .totalCancelledRides(savedDriverProfile.getTotalCancelledRides())
             .registeredAt(savedDriverProfile.getRegisteredAt())
             .build();
+        }
+        @Override
+        public String logout(String email) {
+            UserEntity user = this.userEntityRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
+            validateUserAccountStatus(user);
+            
+            // 1. Handle Driver Status if user is a driver
+            this.driverEntityRepository.findByUserEmail(email).ifPresent(driverProfile -> {
+                driverProfile.setDriverAvailabilityStatus(DriverAvailabilityStatus.OFF_DUTY);
+                this.driverEntityRepository.save(driverProfile);
+                
+                // Clear Driver-specific caches
+                this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email);
+                this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
+                this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
+            });
+
+            // 2. Clear User-specific caches
+            this.redisTemplate.delete(USER_PROFILE_CACHE_PREFIX + email);
+            
+            log.info("User logged out successfully: {}", user.getUserFullName());
+            return "User logged out successfully.";
         }
         // helper methods
         // parse enum

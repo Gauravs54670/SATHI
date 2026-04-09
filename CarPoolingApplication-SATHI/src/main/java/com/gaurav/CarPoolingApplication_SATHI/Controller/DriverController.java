@@ -1,5 +1,6 @@
 package com.gaurav.CarPoolingApplication_SATHI.Controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.DriverService.DriverService;
@@ -68,8 +70,31 @@ public class DriverController {
         RidePostResponseDTO response = this.driverService.postRide(email, rideRequestDTO);
         return new ResponseEntity<>(Map.of(
             "status", "success",
-            "message", "Ride request submitted successfully (Testing Mode)",
+            "message", "Ride request submitted successfully."
+            + " Please wait for user confirmation.",
             "data", response
+        ), HttpStatus.OK);
+    }
+    // get active ride posted by driver
+    @GetMapping("/active-ride")
+    public ResponseEntity<?> getActiveRide(Authentication authentication) {
+        String email = authentication.getName();
+        List<DriverPostedRides> activeRide = this.driverService.getActiveRideForDriver(email);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Active ride(s) found",
+            "data", activeRide
+        ), HttpStatus.OK);
+    }
+    // check if driver has any active ride
+    @GetMapping("/has-active-ride")
+    public ResponseEntity<?> hasActiveRide(Authentication authentication) {
+        String email = authentication.getName();
+        Boolean hasActiveRide = this.driverService.hasActiveRide(email);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Active ride presence checked successfully",
+            "data", hasActiveRide
         ), HttpStatus.OK);
     }
 }

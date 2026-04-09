@@ -5,7 +5,7 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus } from "@/lib/api";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides } from "@/lib/api";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 
 export default function DashboardPage() {
@@ -17,6 +17,10 @@ export default function DashboardPage() {
   const [isDriver, setIsDriver] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
+  const [hasActiveRide, setHasActiveRide] = useState(false);
+  const [postedRides, setPostedRides] = useState<any[]>([]);
+  const [isFetchingRides, setIsFetchingRides] = useState(false);
+  const [showRidesList, setShowRidesList] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -32,6 +36,17 @@ export default function DashboardPage() {
                   setAvailabilityStatus(profile.driverAvailabilityStatus || "OFF_DUTY");
                 }
               }).catch(err => console.error("Driver profile not found", err));
+
+            // NEW: Quick check for active rides
+            checkHasActiveRide()
+              .then(hasRide => {
+                if (mounted) setHasActiveRide(hasRide);
+              }).catch(err => {
+                if (mounted) {
+                  setToastMessage(err.message || "Failed to check active rides");
+                  setTimeout(() => setToastMessage(null), 3000);
+                }
+              });
           }
         })
         .catch(err => console.error("Roles fetch error", err));
@@ -76,6 +91,22 @@ export default function DashboardPage() {
       return;
     }
     proceedToOfferRide();
+  };
+
+  const handleFetchActiveRides = async () => {
+    setIsFetchingRides(true);
+    try {
+      const rides = await fetchActiveRides();
+      setPostedRides(rides);
+      setShowRidesList(true);
+      setToastMessage("Active ride(s) fetched successfully");
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      setToastMessage(err.message || "Failed to fetch active rides");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setIsFetchingRides(false);
+    }
   };
 
   if (isLoading) {
@@ -211,7 +242,8 @@ export default function DashboardPage() {
                 </div>
               )}
               <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Always show Offer a Ride */}
                 <button 
                   onClick={handleOfferRide}
                   disabled={actionLoading}
@@ -238,6 +270,38 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </button>
+
+                {/* Show My Posted Rides only if check returns positively */}
+                {hasActiveRide && (
+                  <button 
+                    onClick={handleFetchActiveRides}
+                    disabled={isFetchingRides}
+                    className="glass-card p-5 text-left border-indigo-500/50 hover:border-indigo-500
+                    transition-all duration-300 hover:-translate-y-0.5 group disabled:opacity-50 animate-fade-in-up">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center
+                        group-hover:bg-indigo-500/20 transition-colors">
+                        {isFetchingRides ? (
+                          <svg className="animate-spin w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">My Posted Rides</p>
+                        <p className="text-slate-400 text-xs mt-0.5">Manage sharing requests</p>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* Find a Ride always visible */}
                 <button className="glass-card p-5 text-left hover:border-purple-500/40
                   transition-all duration-300 hover:-translate-y-0.5 group">
                   <div className="flex items-center gap-3">
@@ -255,6 +319,78 @@ export default function DashboardPage() {
                   </div>
                 </button>
               </div>
+
+              {/* Active Rides List Section */}
+              {showRidesList && postedRides.length > 0 && (
+                <div className="mt-8 animate-fade-in-up">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-white">Your Active Ride Details</h2>
+                    <button 
+                      onClick={() => setShowRidesList(false)}
+                      className="text-slate-400 hover:text-white transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {postedRides.map((ride) => (
+                      <div key={ride.rideId} className="glass-card p-5 border-indigo-500/30">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${ride.rideStatus === 'RIDE_STARTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                              {ride.rideStatus.replace('_', ' ')}
+                            </span>
+                            <p className="text-white font-semibold mt-2">Ride #{ride.rideId}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-indigo-400 font-bold text-lg">₹{ride.estimatedFare}</p>
+                            <p className="text-slate-500 text-[10px]">Estimated Fare</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                          <div className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                              <div className="w-0.5 h-full bg-slate-800 my-1" />
+                              <div className="w-2 h-2 rounded-full border border-indigo-500" />
+                            </div>
+                            <div className="flex flex-col gap-4">
+                              <div>
+                                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">From</p>
+                                <p className="text-slate-200 text-sm line-clamp-1">{ride.sourceAddress}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">To</p>
+                                <p className="text-slate-200 text-sm line-clamp-1">{ride.destinationAddress}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-400">
+                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                             </svg>
+                             <p className="text-xs">{new Date(ride.rideDepartureTime).toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <button 
+                          onClick={() => {
+                            setToastMessage("Redirecting to ride sharing requests... (Feature coming soon)");
+                            setTimeout(() => setToastMessage(null), 3000);
+                          }}
+                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-all flex items-center justify-center gap-2 group"
+                        >
+                          Click to see the ride sharing requests
+                          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (

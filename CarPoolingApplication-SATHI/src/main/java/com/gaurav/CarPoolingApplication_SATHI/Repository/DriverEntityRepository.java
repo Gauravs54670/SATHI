@@ -44,5 +44,4 @@ public interface DriverEntityRepository extends JpaRepository<DriverProfileEntit
         WHERE user.email = :email
         """)
     Optional<DriverProfileDTO> findDriverProfileByEmail(@Param("email") String email);
-                
 }

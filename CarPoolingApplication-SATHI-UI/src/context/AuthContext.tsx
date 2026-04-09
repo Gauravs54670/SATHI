@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { loginAndFetchProfile, fetchProfile } from "@/lib/api";
+import { loginAndFetchProfile, fetchProfile, logoutUser } from "@/lib/api";
 
 // Shape of the user profile returned from the backend
 import { UserProfileDTO } from "@/lib/api";
@@ -13,7 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   isLoggedIn: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateStoredPassword: (newPassword: string) => void;
 }
@@ -48,10 +48,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.profile.response || data.profile);
   };
 
-  const logout = () => {
-    localStorage.removeItem("sathi_token");
-    localStorage.removeItem("sathi_credentials"); // safety cleanup
-    setUser(null);
+  const logout = async () => {
+    try {
+      if (user?.email) {
+        await logoutUser(user.email);
+      }
+    } catch (err) {
+      console.error("Logout API failed", err);
+    } finally {
+      localStorage.removeItem("sathi_token");
+      localStorage.removeItem("sathi_credentials"); // safety cleanup
+      setUser(null);
+    }
   };
 
   const refreshProfile = useCallback(async () => {

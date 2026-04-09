@@ -61,4 +61,11 @@ public class AuthController {
                 "message", message
         ), HttpStatus.OK);
     }
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestParam("email") String email) {
+        String message = this.authService.logout(email);
+        return new ResponseEntity<>(Map.of(
+                "message", message
+        ), HttpStatus.OK);
+    }
 }

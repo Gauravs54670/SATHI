@@ -91,8 +91,8 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
       )}
       <div className="border-t border-white/5 my-1" />
       <button
-        onClick={() => {
-          logout();
+        onClick={async () => {
+          await logout();
           router.push("/dashboard");
           onClose();
         }}

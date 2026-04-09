@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -14,19 +15,22 @@ import org.springframework.stereotype.Service;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
-import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverVerificationStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleCategory;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleClass;
+import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.DriverEntityRepository;
+import com.gaurav.CarPoolingApplication_SATHI.Repository.RideEntityRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.UserEntityRepository;
 
 import jakarta.transaction.Transactional;
@@ -36,21 +40,27 @@ import lombok.extern.slf4j.Slf4j;
 public class DriverServiceImplementation implements DriverService{
     // Constants
     private static final double EARTH_RADIUS_KM = 6371.0;
-    private static BigDecimal BASE_PRICE = BigDecimal.valueOf(10.0);
+    private static final BigDecimal systemCommissionRate = BigDecimal.valueOf(0.1);
     // Redis key prefix for user profiles
     private static final String DRIVER_PROFILE_CACHE_PREFIX = "driver:profile:";
     // Cache TTL (time-to-live) in minutes
     private static final long CACHE_TTL_MINUTES = 30;
+    private static final String DRIVER_RIDES_CACHE_PREFIX = "driver:rides:";
+    private static final String DRIVER_HAS_RIDE_CACHE_PREFIX = "driver:has-active-ride:";
+    private static final long RIDES_CACHE_TTL_MINUTES = 10;
     private final RedisTemplate<String, Object> redisTemplate;  
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
+    private final RideEntityRepository rideEntityRepository;
     public DriverServiceImplementation(
         UserEntityRepository userEntityRepository,
         RedisTemplate<String, Object> redisTemplate,
-        DriverEntityRepository driverEntityRepository) {
+        DriverEntityRepository driverEntityRepository,
+        RideEntityRepository rideEntityRepository)   {
         this.redisTemplate = redisTemplate;
         this.driverEntityRepository = driverEntityRepository;
         this.userEntityRepository = userEntityRepository;
+        this.rideEntityRepository = rideEntityRepository;
     }
     // get driver profile
     @Override
@@ -126,6 +136,7 @@ public class DriverServiceImplementation implements DriverService{
         this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email);
         return "Driver availability status changed to " + driverProfileEntity.getDriverAvailabilityStatus().toString();
     }
+
     // post ride
     @Override
     @Transactional
@@ -157,49 +168,129 @@ public class DriverServiceImplementation implements DriverService{
         }
 
         BigDecimal distanceBD = BigDecimal.valueOf(distance);
-        BigDecimal estimatedFare = distanceBD.multiply(rideRequestDTO.getPricePerKm());
+        BigDecimal farePerKm = distanceBD.multiply(rideRequestDTO.getPricePerKm());
+        BigDecimal baseFare = calculateBaseFareOfRide(driverProfileEntity.getVehicleClass(), driverProfileEntity.getVehicleCategory());
+        BigDecimal estimatedFare = baseFare.add(farePerKm);
+        BigDecimal systemCommission = estimatedFare.multiply(systemCommissionRate);
+        // BigDecimal totalDriverShare will be implemented in the complete ride method
+        RideEntity rideEntity = RideEntity.builder()
+            .driverProfileEntity(driverProfileEntity)
+            .sourceLat(rideRequestDTO.getSourceLat())
+            .sourceLng(rideRequestDTO.getSourceLong())
+            .sourceAddress(rideRequestDTO.getBoardingAddress())
+            .destinationLat(rideRequestDTO.getDestinationLat())
+            .destinationLng(rideRequestDTO.getDestinationLong())
+            .destinationAddress(rideRequestDTO.getDestinationAddress())
+            .vehicleClass(driverProfileEntity.getVehicleClass())
+            .vehicleCategory(driverProfileEntity.getVehicleCategory())
+            .rideStatus(RideStatus.RIDE_POSTED)
+            .estimatedDistanceOfRide(distanceBD.setScale(2, java.math.RoundingMode.HALF_UP))
+            .actualDistanceOfRide(distanceBD.setScale(2, java.math.RoundingMode.HALF_UP))
+            .baseFare(baseFare.setScale(2, java.math.RoundingMode.HALF_UP))
+            .pricePerKm(rideRequestDTO.getPricePerKm())
+            .estimatedFare(estimatedFare.setScale(2, java.math.RoundingMode.HALF_UP))
+            .systemCommission(systemCommission.setScale(2, java.math.RoundingMode.HALF_UP))
+            .totalDriverShare(BigDecimal.ZERO)
+            .actualFare(BigDecimal.ZERO)
+            .totalAvailableSeats(rideRequestDTO.getAvailableSeats())
+            .offeredSeats(driverProfileEntity.getVehicleSeatCapacity())
+            .totalPassengersSharedRide(0)
+            .rideDepartureTime(rideRequestDTO.getDepartureTime())
+            .rideCompletiontime(null)
+            .rideCreatedAt(LocalDateTime.now())
+            .rideUpdatedAt(LocalDateTime.now())
+            .routePath(rideRequestDTO.getRoutePath())
+            .build();
+        this.rideEntityRepository.save(rideEntity);
+        // 4. Invalidate Cache
+        this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
+        this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
+        // 5. Return Mapped Response
+        log.info("Ride posted successfully.");
+        return mapRideEntityToRidePostResponseDTO(rideEntity);
+    }
+    // check if ride is posted by driver
+    @Override
+    public List<DriverPostedRides> getActiveRideForDriver(String email) {
+        // Check Cache
+        String cacheKey = DRIVER_RIDES_CACHE_PREFIX + email;
+        @SuppressWarnings("unchecked")
+        List<DriverPostedRides> cachedRides = (List<DriverPostedRides>) this.redisTemplate.opsForValue().get(cacheKey);
+        if (cachedRides != null) {
+            log.info("Active rides fetched from cache for: {}", email);
+            return cachedRides;
+        }
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        validateUserAccount(driverProfileEntity.getUser());
+        List<DriverPostedRides> activeRide = this.rideEntityRepository.findFirstActiveRide(
+            driverProfileEntity, 
+            Arrays.asList(RideStatus.RIDE_POSTED, RideStatus.RIDE_STARTED), 
+            LocalDateTime.now()
+        );
+        if(activeRide == null || activeRide.isEmpty()) 
+            throw new NoActiveRideFoundException("No active ride found.");
+        // Save to Cache
+        this.redisTemplate.opsForValue().set(cacheKey, activeRide, RIDES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        log.info("Active rides fetched from DB and cached for: {}", email);
+        return activeRide;
+    }
+    // check if driver has any active ride
+    @Override
+    public Boolean hasActiveRide(String email) {
+        String cacheKey = DRIVER_HAS_RIDE_CACHE_PREFIX + email;
+        Boolean hasRide = (Boolean) this.redisTemplate.opsForValue().get(cacheKey);
+        if (hasRide != null) return hasRide;
 
-        // 3. Log the Full Request for Backend Verification
-        log.info("RIDE POST REQUEST [TEST MODE] - User: {}, Source: {}, Destination: {}, Distance: {} km, Fare: ₹{}, RoutePath: {}", 
-            email, rideRequestDTO.getBoardingAddress(), rideRequestDTO.getDestinationAddress(), 
-            String.format("%.2f", distance), estimatedFare.setScale(2, java.math.RoundingMode.HALF_UP),
-            rideRequestDTO.getRoutePath() != null ? "RECEIVED" : "MISSING");
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        validateUserAccount(driverProfileEntity.getUser());
 
-        // 4. Return Mapped Response
+        hasRide = this.rideEntityRepository.existsActiveRide(
+            driverProfileEntity, 
+            Arrays.asList(RideStatus.RIDE_POSTED, RideStatus.RIDE_STARTED), 
+            LocalDateTime.now()
+        );
+
+        this.redisTemplate.opsForValue().set(cacheKey, hasRide, RIDES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return hasRide;
+    }
+    // map RideEntity to RidePostResponseDTO
+    private RidePostResponseDTO mapRideEntityToRidePostResponseDTO(RideEntity rideEntity) {
         RidePostResponseDTO response = new RidePostResponseDTO();
-        response.setRideId(0L); // Mock ID
-        response.setDriverName(user.getUserFullName());
-        response.setSourceLat(rideRequestDTO.getSourceLat());
-        response.setSourceLong(rideRequestDTO.getSourceLong());
-        response.setBoardingAddress(rideRequestDTO.getBoardingAddress());
-        response.setDestinationLat(rideRequestDTO.getDestinationLat());
-        response.setDestinationLong(rideRequestDTO.getDestinationLong());
-        response.setDestinationAddress(rideRequestDTO.getDestinationAddress());
-        response.setDepartureTime(rideRequestDTO.getDepartureTime());
-        response.setAvailableSeats(rideRequestDTO.getAvailableSeats());
-        response.setPricePerKm(rideRequestDTO.getPricePerKm());
-        response.setEstimatedTotalDistance(distanceBD.setScale(2, java.math.RoundingMode.HALF_UP));
-        response.setEstimatedRideFare(estimatedFare.setScale(2, java.math.RoundingMode.HALF_UP));
-        response.setRoutePath(rideRequestDTO.getRoutePath());
-
+        response.setRideId(rideEntity.getRideId());
+        response.setDriverName(rideEntity.getDriverProfileEntity().getUser().getUserFullName());
+        response.setSourceLat(rideEntity.getSourceLat());
+        response.setSourceLong(rideEntity.getSourceLng());
+        response.setBoardingAddress(rideEntity.getSourceAddress());
+        response.setDestinationLat(rideEntity.getDestinationLat());
+        response.setDestinationLong(rideEntity.getDestinationLng());
+        response.setDestinationAddress(rideEntity.getDestinationAddress());
+        response.setDepartureTime(rideEntity.getRideDepartureTime());
+        response.setAvailableSeats(rideEntity.getTotalAvailableSeats());
+        response.setBasePrice(rideEntity.getBaseFare());
+        response.setPricePerKm(rideEntity.getPricePerKm());
+        response.setEstimatedTotalDistance(rideEntity.getEstimatedDistanceOfRide());
+        response.setEstimatedRideFare(rideEntity.getEstimatedFare());
+        response.setRoutePath(rideEntity.getRoutePath());
         return response;
     }
     // helper methods
     // calculate price per km of ride
-    private BigDecimal calculatePricePerKmOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
-        switch (vehicleCategory) {
-            case HATCHBACK -> BASE_PRICE = BigDecimal.valueOf(6);
-            case SEDAN -> BASE_PRICE = BigDecimal.valueOf(8);
-            case SUV -> BASE_PRICE = BigDecimal.valueOf(10);
-            case MUV -> BASE_PRICE = BigDecimal.valueOf(9);
-            case AUTO_RICKSHAW -> BASE_PRICE = BigDecimal.valueOf(5);
-            case BIKE -> BASE_PRICE = BigDecimal.valueOf(4);
+    private BigDecimal calculateBaseFareOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
+        BigDecimal basePrice = switch (vehicleCategory) {
+            case HATCHBACK -> BigDecimal.valueOf(6);
+            case SEDAN -> BigDecimal.valueOf(8);
+            case SUV -> BigDecimal.valueOf(10);
+            case MUV -> BigDecimal.valueOf(9);
+            case AUTO_RICKSHAW -> BigDecimal.valueOf(5);
+            case BIKE -> BigDecimal.valueOf(4);
             default -> throw new IllegalArgumentException("Unsupported vehicle category.");
-        }
+        };
         return switch (vehicleClass) {
-            case ECONOMY -> BASE_PRICE;
-            case STANDARD -> BASE_PRICE.add(BigDecimal.valueOf(2));
-            case PREMIUM -> BASE_PRICE.add(BigDecimal.valueOf(4));
+            case ECONOMY -> basePrice;
+            case STANDARD -> basePrice.add(BigDecimal.valueOf(2));
+            case PREMIUM -> basePrice.add(BigDecimal.valueOf(4));
         };
     }
     // calculate distance by Haversine formula

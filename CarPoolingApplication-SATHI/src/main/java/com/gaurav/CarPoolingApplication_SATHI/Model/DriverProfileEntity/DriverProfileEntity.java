@@ -60,6 +60,8 @@ public class DriverProfileEntity {
     private DriverVerificationStatus driverVerificationStatus;
     private Integer totalCompletedRides;
     private Integer totalCancelledRides;
+    @Builder.Default
+    private Boolean isAdminVerified = false;
     private LocalDateTime registeredAt;
     private LocalDateTime updatedAt;
 
