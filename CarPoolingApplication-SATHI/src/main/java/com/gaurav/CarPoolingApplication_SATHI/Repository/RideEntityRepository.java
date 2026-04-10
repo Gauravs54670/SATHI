@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideEntity;
@@ -49,4 +50,31 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         @Param("statuses") Collection<RideStatus> statuses,
         @Param("now") LocalDateTime now
     );
+    // get available rides for passengers
+    @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO(
+                r.rideId,
+                r.driverProfileEntity.user.userFullName,
+                r.driverProfileEntity.user.email,
+                r.driverProfileEntity.user.averageRating,
+                r.sourceAddress,
+                r.destinationAddress,
+                r.rideDepartureTime,
+                r.offeredSeats,
+                r.baseFare,
+                r.pricePerKm,
+                r.estimatedFare,
+                r.driverProfileEntity.vehicleModel,
+                r.driverProfileEntity.vehicleClass,
+                r.driverProfileEntity.vehicleCategory
+            )
+            FROM RideEntity r
+            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+            AND r.rideDepartureTime >= :now
+            AND r.totalAvailableSeats > 0
+            AND (:city IS NULL OR :city = '' OR LOWER(r.sourceAddress) LIKE LOWER(CONCAT('%', :city, '%')))
+            ORDER BY r.rideDepartureTime ASC
+            """)
+    List<AvailablePostedRideDTO> findAvailableRides(
+        @Param("now") LocalDateTime now, @Param("city") String city);
 }

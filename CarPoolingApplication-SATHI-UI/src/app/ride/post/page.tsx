@@ -228,11 +228,29 @@ export default function PostRidePage() {
                 </div>
               </div>
 
+              <div className="p-5 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 mb-6">
+                <div className="flex gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-bold text-sm mb-1">Set a Fair Price per KM</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      Hello Driver! Please choose your price <span className="text-indigo-400 font-bold uppercase tracking-tighter">reasonably</span>. 
+                      Setting a price that matches your <strong>Vehicle Class</strong> and <strong>Category</strong> ensures a fair deal for both you and your passengers. 
+                      In the future, we'll provide exact price suggestions based on your route and vehicle!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                 <div className="flex justify-between items-center mb-4">
                    <div>
                      <label className="block text-sm font-medium text-slate-300">Price per KM (₹)</label>
-                     <p className="text-[10px] text-slate-500 italic">Adjust based on your vehicle</p>
+                     <p className="text-[10px] text-slate-500 italic">Balance your fuel costs and passenger affordability</p>
                    </div>
                    <div className="px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 font-bold text-lg">
                       ₹{pricePerKm}

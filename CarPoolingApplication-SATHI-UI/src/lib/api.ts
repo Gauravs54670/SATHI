@@ -319,6 +319,34 @@ export async function fetchActiveRides() {
   return data.data; // returns DriverPostedRides[]
 }
 
+export interface AvailablePostedRideDTO {
+  rideId: number;
+  driverName: string;
+  driverEmail: string;
+  driverRating: number;
+  driverSourceAddress: string;
+  driverDestinationAddress: string;
+  rideDepartureTime: string;
+  totalOfferedSeats: number;
+  basePrice: number[];
+  pricePerKm: number[];
+  totalEstimatedCost: number[];
+  vehicleModel: string;
+  vehicleClass: string;
+  vehicleCategory: string;
+}
+
+export async function fetchAvailableRides(city?: string) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const query = city ? `?city=${encodeURIComponent(city)}` : "";
+  const res = await fetchWithAuth(`${API_BASE}/passenger/available-rides${query}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch available rides");
+  return data.data; // returns AvailablePostedRideDTO[]
+}
+
 export async function logoutUser(email: string) {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/auth/logout?email=${encodeURIComponent(email)}`, {

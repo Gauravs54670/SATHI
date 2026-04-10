@@ -242,83 +242,96 @@ export default function DashboardPage() {
                 </div>
               )}
               <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-white/5">
                 {/* Always show Offer a Ride */}
                 <button 
                   onClick={handleOfferRide}
                   disabled={actionLoading}
-                  className="glass-card p-5 text-left hover:border-indigo-500/40
-                  transition-all duration-300 hover:-translate-y-0.5 group disabled:opacity-50 disabled:hover:translate-y-0 disabled:cursor-not-allowed">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center
-                      group-hover:bg-indigo-500/20 transition-colors">
+                  className="glass-card p-8 text-left border-indigo-500/30 hover:border-indigo-500
+                  transition-all duration-300 hover:-translate-y-1 group disabled:opacity-50 disabled:hover:translate-y-0 disabled:cursor-not-allowed h-full flex flex-col justify-center">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center
+                      group-hover:bg-indigo-500/20 transition-all duration-300 ring-1 ring-indigo-500/20 group-hover:ring-indigo-500/40">
                       {actionLoading ? (
-                        <svg className="animate-spin w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                       ) : (
-                        <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       )}
                     </div>
                     <div>
-                      <p className="text-white font-medium">Offer a Ride</p>
-                      <p className="text-slate-400 text-xs mt-0.5">Share your ride with others</p>
+                      <p className="text-xl font-bold text-white mb-1">Offer a Ride</p>
+                      <p className="text-slate-400 text-sm">Earn while you travel by sharing your seats</p>
                     </div>
                   </div>
                 </button>
 
-                {/* Show My Posted Rides only if check returns positively */}
-                {hasActiveRide && (
-                  <button 
-                    onClick={handleFetchActiveRides}
-                    disabled={isFetchingRides}
-                    className="glass-card p-5 text-left border-indigo-500/50 hover:border-indigo-500
-                    transition-all duration-300 hover:-translate-y-0.5 group disabled:opacity-50 animate-fade-in-up">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center
-                        group-hover:bg-indigo-500/20 transition-colors">
-                        {isFetchingRides ? (
-                          <svg className="animate-spin w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-white font-medium">My Posted Rides</p>
-                        <p className="text-slate-400 text-xs mt-0.5">Manage sharing requests</p>
-                      </div>
-                    </div>
-                  </button>
-                )}
-
-                {/* Find a Ride always visible */}
-                <button className="glass-card p-5 text-left hover:border-purple-500/40
-                  transition-all duration-300 hover:-translate-y-0.5 group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center
-                      group-hover:bg-purple-500/20 transition-colors">
-                      <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {/* Find a Ride Card */}
+                <button 
+                  onClick={() => router.push('/rides/available')}
+                  className="glass-card p-8 text-left border-purple-500/30 hover:border-purple-500
+                  transition-all duration-300 hover:-translate-y-1 group h-full flex flex-col justify-center">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center
+                      group-hover:bg-purple-500/20 transition-all duration-300 ring-1 ring-purple-500/20 group-hover:ring-purple-500/40">
+                      <svg className="w-7 h-7 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
                     <div>
-                      <p className="text-white font-medium">Find a Ride</p>
-                      <p className="text-slate-400 text-xs mt-0.5">Search for available rides</p>
+                      <p className="text-xl font-bold text-white mb-1">Find a Ride</p>
+                      <p className="text-slate-400 text-sm">Discover verified drivers heading your way</p>
                     </div>
                   </div>
                 </button>
               </div>
+
+              {/* Show My Posted Rides Row for Drivers */}
+              {isDriver && (
+                <div className="mt-8 animate-fade-in-up">
+                   <h2 className="text-xl font-semibold text-white mb-4">Driver Management</h2>
+                   <button 
+                    onClick={handleFetchActiveRides}
+                    disabled={isFetchingRides}
+                    className="w-full glass-card p-6 text-left border-indigo-500/20 hover:border-indigo-500/50
+                    transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 group disabled:opacity-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center
+                          group-hover:bg-indigo-500/20 transition-colors">
+                          {isFetchingRides ? (
+                            <svg className="animate-spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          ) : (
+                            <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-white">My Posted Rides</p>
+                          <p className="text-slate-400 text-sm mt-0.5">Manage your active rides and shared requests</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
+                        View Details
+                        <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
 
               {/* Active Rides List Section */}
               {showRidesList && postedRides.length > 0 && (

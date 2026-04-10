@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "SATHI - Car Pooling Application",
   description: "Share rides, save money, reduce carbon footprint with SATHI car pooling.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

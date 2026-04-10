@@ -205,6 +205,13 @@ public class DriverServiceImplementation implements DriverService{
         // 4. Invalidate Cache
         this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
         this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
+        // Invalidate global passenger cache
+        this.redisTemplate.delete("rides:available"); 
+        // Invalidate city-specific cache if city can be extracted
+        String city = extractCity(rideEntity.getSourceAddress());
+        if (city != null) {
+            this.redisTemplate.delete("rides:available:" + city.toLowerCase());
+        }
         // 5. Return Mapped Response
         log.info("Ride posted successfully.");
         return mapRideEntityToRidePostResponseDTO(rideEntity);
@@ -323,11 +330,19 @@ public class DriverServiceImplementation implements DriverService{
         if(user.getAccountStatus() == UserAccountStatus.INACTIVE){
             throw new AccessDeniedException("User account is inactive.");
         }
-        if(!user.getIsEmailVerified()){
-            throw new AccessDeniedException("User email is not verified.");
-        }
         if(!user.getUserRoles().contains(UserRole.DRIVER)){
             throw new AccessDeniedException("User is not a driver.");
         }
+    }
+
+    private String extractCity(String address) {
+        if (address == null || address.isEmpty()) return null;
+        String[] parts = address.split(",");
+        if (parts.length >= 3) {
+            // Usually City is the 3rd or 4th part from the end or start depending on format
+            // e.g. "Civil Lines, Prayagraj, Uttar Pradesh, India" -> Prayagraj
+            return parts[parts.length - 3].trim();
+        }
+        return null;
     }
 }

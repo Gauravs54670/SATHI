@@ -326,6 +326,23 @@ export default function LocationPickerMap({
                 if (pickupInput.length >= 3) setShowResults("pickup");
               }}
             />
+            {pickupInput && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setPickupInput("");
+                  setPickup(null);
+                  onPickupSelect({ lat: 0, lng: 0, address: "" });
+                  setSearchResults([]);
+                }}
+                className="absolute right-10 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                title="Clear Pickup"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
             <div className={`absolute right-3 top-1/2 -translate-y-1/2 transition-opacity ${mode === 'pickup' ? 'opacity-100' : 'opacity-0'}`}>
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
@@ -371,6 +388,23 @@ export default function LocationPickerMap({
                 if (dropInput.length >= 3) setShowResults("drop");
               }}
             />
+            {dropInput && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setDropInput("");
+                  setDrop(null);
+                  onDropSelect({ lat: 0, lng: 0, address: "" });
+                  setSearchResults([]);
+                }}
+                className="absolute right-10 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                title="Clear Drop-off"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
             <div className={`absolute right-3 top-1/2 -translate-y-1/2 transition-opacity ${mode === 'drop' ? 'opacity-100' : 'opacity-0'}`}>
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             </div>

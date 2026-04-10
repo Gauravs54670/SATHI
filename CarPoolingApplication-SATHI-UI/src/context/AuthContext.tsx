@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       localStorage.removeItem("sathi_token");
       localStorage.removeItem("sathi_credentials"); // safety cleanup
+      localStorage.removeItem("sathi_selected_city"); // clear city cache on logout
       setUser(null);
     }
   };
