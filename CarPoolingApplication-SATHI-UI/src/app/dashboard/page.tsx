@@ -28,6 +28,9 @@ export default function DashboardPage() {
       fetchUserRoles()
         .then(roles => {
           if (!mounted) return;
+
+
+
           if (roles.includes("DRIVER")) {
             setIsDriver(true);
             fetchDriverProfile()
@@ -291,6 +294,8 @@ export default function DashboardPage() {
                   </div>
                 </button>
               </div>
+
+
 
               {/* My Posted Rides Row for Drivers - only if they have active rides */}
               {isDriver && hasActiveRide && (

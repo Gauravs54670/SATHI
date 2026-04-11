@@ -111,4 +111,26 @@ public class DriverController {
             "data", rideRequests
         ), HttpStatus.OK);
     }
+    // accept ride request
+    @PutMapping("/accept-ride-request")
+    public ResponseEntity<?> acceptRideRequest(Authentication authentication, 
+            @RequestParam("rideId") Long rideId, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        String message = this.driverService.acceptRideRequest(email, rideId, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", message
+        ), HttpStatus.OK);
+    }
+    // reject ride request
+    @PutMapping("/reject-ride-request")
+    public ResponseEntity<?> rejectRideRequest(Authentication authentication, 
+            @RequestParam("rideId") Long rideId, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        String message = this.driverService.rejectRideRequest(email, rideId, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", message
+        ), HttpStatus.OK);
+    }
 }

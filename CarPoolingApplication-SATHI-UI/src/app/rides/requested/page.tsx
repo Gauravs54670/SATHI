@@ -60,7 +60,7 @@ export default function MyRideRequestsPage() {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <button 
-                  onClick={() => router.push("/rides/available")}
+                  onClick={() => router.push("/dashboard")}
                   className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-xl group"
               >
                   <svg className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -70,7 +70,7 @@ export default function MyRideRequestsPage() {
               <div className="h-px w-8 bg-white/10" />
               <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Passenger Dashboard</span>
             </div>
-            <h1 className="text-5xl font-black text-white tracking-tightest">My Requests</h1>
+            <h1 className="text-5xl font-black text-white tracking-tightest">My Ride Requests</h1>
             <p className="text-slate-400 font-medium mt-2">Manage your current bookings and track ride progress</p>
           </div>
           

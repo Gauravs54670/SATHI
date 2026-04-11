@@ -18,4 +18,6 @@ public interface DriverService {
     List<DriverPostedRides> getActiveRideForDriver(String email);
     Boolean hasActiveRide(String email);
     List<PassengerRideBookingRequestsDTO> getMyPostedRidesRequests(String email, Long rideId);
+    String acceptRideRequest(String email,Long rideId, Long rideRequestId);
+    String rejectRideRequest(String email,Long rideId, Long rideRequestId);
 }

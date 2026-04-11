@@ -20,6 +20,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileR
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoEntryFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
@@ -27,7 +28,9 @@ import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAv
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleCategory;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.VehicleClass;
+import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
@@ -340,6 +343,99 @@ public class DriverServiceImplementation implements DriverService {
         return rideRequests;
     }
 
+    // accept ride request
+    @Override
+    @Transactional
+    public String acceptRideRequest(String email, Long rideId, Long rideRequestId) {
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        validateUserAccount(driverProfileEntity.getUser());
+        RideEntity rideEntity = this.rideEntityRepository.findById(rideId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
+        if (!Objects.equals(rideEntity.getDriverProfileEntity().getUser().getUserId(),
+                driverProfileEntity.getUser().getUserId()))
+            throw new NoEntryFoundException("You are not authorized to access this ride.");
+        PassengerRideRequestEntity passengerRideRequestEntity = this.passengerRideRequestRepository.findById(rideRequestId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getRideId(), rideId))
+            throw new NoEntryFoundException("Ride request not found.");
+        if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getDriverProfileEntity().getUser().getUserId(),
+                driverProfileEntity.getUser().getUserId()))
+            throw new NoEntryFoundException("You are not authorized to access this ride.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.ACCEPTED))
+            throw new NoEntryFoundException("Ride request already accepted.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.REJECTED))
+            throw new NoEntryFoundException("Ride request already rejected.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.CANCELLED))
+            throw new NoEntryFoundException("Ride request already cancelled.");
+        // Seat Validation
+        if (rideEntity.getTotalAvailableSeats() < passengerRideRequestEntity.getRequestedSeats()) {
+            throw new InvalidRideStateException("Not enough seats available to accept this request. Available: " 
+                + rideEntity.getTotalAvailableSeats() + ", Requested: " + passengerRideRequestEntity.getRequestedSeats());
+        }
+        try{
+            // Update Request Status
+            passengerRideRequestEntity.setRideRequestStatus(RideRequestStatus.ACCEPTED);
+            passengerRideRequestEntity.setRideAcceptedAt(LocalDateTime.now());
+            
+            // Update Ride Seats
+            rideEntity.setTotalAvailableSeats(rideEntity.getTotalAvailableSeats() - passengerRideRequestEntity.getRequestedSeats());
+            
+            // Check for RIDE_FULL status
+            if (rideEntity.getTotalAvailableSeats() == 0) {
+                rideEntity.setRideStatus(RideStatus.RIDE_FULL);
+                log.info("Ride ID: {} is now FULL.", rideId);
+            }
+
+            this.rideEntityRepository.save(rideEntity);
+            this.passengerRideRequestRepository.save(passengerRideRequestEntity);
+            
+            log.info("Ride request ID: {} accepted for ride ID: {}. Remaining seats: {}", 
+                rideRequestId, rideId, rideEntity.getTotalAvailableSeats());
+
+            this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId);
+            return "Ride request accepted successfully.";
+        }catch(Exception e){
+            log.error("Error accepting ride request ID: {}: {}", rideRequestId, e.getMessage());
+            throw new RuntimeException("Failed to accept ride request.");
+        }
+    }
+    // reject ride request
+    @Override
+    @Transactional
+    public String rejectRideRequest(String email, Long rideId, Long rideRequestId) {
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        validateUserAccount(driverProfileEntity.getUser());
+        RideEntity rideEntity = this.rideEntityRepository.findById(rideId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
+        if (!Objects.equals(rideEntity.getDriverProfileEntity().getUser().getUserId(),
+                driverProfileEntity.getUser().getUserId()))
+            throw new NoEntryFoundException("You are not authorized to access this ride.");
+        PassengerRideRequestEntity passengerRideRequestEntity = this.passengerRideRequestRepository.findById(rideRequestId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getRideId(), rideId))
+            throw new NoEntryFoundException("Ride request not found.");
+        if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getDriverProfileEntity().getUser().getUserId(),
+                driverProfileEntity.getUser().getUserId()))
+            throw new NoEntryFoundException("You are not authorized to access this ride.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.ACCEPTED))
+            throw new NoEntryFoundException("Ride request already accepted.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.REJECTED))
+            throw new NoEntryFoundException("Ride request already rejected.");
+        if(Objects.equals(passengerRideRequestEntity.getRideRequestStatus(), RideRequestStatus.CANCELLED))
+            throw new NoEntryFoundException("Ride request already cancelled.");
+        try{
+            passengerRideRequestEntity.setRideRequestStatus(RideRequestStatus.REJECTED);
+            passengerRideRequestEntity.setRideRejectedAt(LocalDateTime.now());
+            this.passengerRideRequestRepository.save(passengerRideRequestEntity);
+            this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId);
+            return "Ride request rejected successfully.";
+        }catch(Exception e){
+            throw new RuntimeException("Failed to reject ride request.");
+        }
+    }
+
     // helper methods
     // calculate price per km of ride
     private BigDecimal calculateBaseFareOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
@@ -358,7 +454,7 @@ public class DriverServiceImplementation implements DriverService {
             case PREMIUM -> basePrice.add(BigDecimal.valueOf(4));
         };
     }
-
+    
     // calculate distance by Haversine formula
     private double calculateDistanceByHaverSineFormula(double lat1, double lon1, double lat2, double lon2) {
         double dLat = Math.toRadians(lat2 - lat1);
@@ -398,16 +494,4 @@ public class DriverServiceImplementation implements DriverService {
             throw new AccessDeniedException("User is not a driver.");
         }
     }
-
-    // private String extractCity(String address) {
-    // if (address == null || address.isEmpty()) return null;
-    // String[] parts = address.split(",");
-    // if (parts.length >= 3) {
-    // // Usually City is the 3rd or 4th part from the end or start depending on
-    // format
-    // // e.g. "Civil Lines, Prayagraj, Uttar Pradesh, India" -> Prayagraj
-    // return parts[parts.length - 3].trim();
-    // }
-    // return null;
-    // }
 }

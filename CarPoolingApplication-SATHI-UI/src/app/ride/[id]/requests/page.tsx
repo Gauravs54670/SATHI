@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchRideRequests, PassengerRideBookingRequest } from "@/lib/api";
+import { fetchRideRequests, PassengerRideBookingRequest, acceptRideRequest, rejectRideRequest } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 
 export default function RideRequestsPage() {
@@ -10,31 +10,47 @@ export default function RideRequestsPage() {
   const router = useRouter();
   const [requests, setRequests] = useState<PassengerRideBookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadRequests = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchRideRequests(Number(id));
-        setRequests(data);
-      } catch (err: any) {
-        setError(err.message || "Failed to load ride requests");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchRideRequests(Number(id));
+      setRequests(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load ride requests");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (id) loadRequests();
   }, [id]);
 
-  const showPlaceholderToast = (action: string) => {
-    setToast(`${action} feature is coming soon!`);
-    setTimeout(() => setToast(null), 3000);
+  const handleAction = async (requestId: number, action: 'accept' | 'reject') => {
+    setProcessingId(requestId);
+    try {
+      const msg = action === 'accept' 
+        ? await acceptRideRequest(Number(id), requestId)
+        : await rejectRideRequest(Number(id), requestId);
+      
+      setToast(msg);
+      setTimeout(() => setToast(null), 3000);
+      
+      // Refresh the list to reflect status changes and remaining seats
+      await loadRequests();
+    } catch (err: any) {
+      setToast(err.message || `Failed to ${action} request`);
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
-  if (loading) {
+  if (loading && requests.length === 0) {
     return (
       <div className="min-h-screen bg-bg-main flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -147,16 +163,22 @@ export default function RideRequestsPage() {
                     {/* Action Bar */}
                     <div className="flex gap-4 pt-4">
                       <button
-                        onClick={() => showPlaceholderToast("REJECT")}
-                        className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-red-500/10 hover:border-red-500/30 transition-all hover:text-red-400"
+                        onClick={() => handleAction(request.rideRequestId, 'reject')}
+                        disabled={processingId !== null}
+                        className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-red-500/10 hover:border-red-500/30 transition-all hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                       >
-                        Reject
+                        {processingId === request.rideRequestId ? (
+                          <div className="w-4 h-4 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
+                        ) : "Reject"}
                       </button>
                       <button
-                        onClick={() => showPlaceholderToast("ACCEPT")}
-                        className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98]"
+                        onClick={() => handleAction(request.rideRequestId, 'accept')}
+                        disabled={processingId !== null}
+                        className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                       >
-                        Accept Passenger
+                         {processingId === request.rideRequestId ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : "Accept Passenger"}
                       </button>
                     </div>
                   </div>

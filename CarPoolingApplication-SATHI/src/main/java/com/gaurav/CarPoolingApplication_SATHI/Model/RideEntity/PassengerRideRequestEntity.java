@@ -59,5 +59,8 @@ public class PassengerRideRequestEntity {
     private Boolean isDriverReachedPickupLocation = false;
     @CreationTimestamp
     private LocalDateTime rideRequestedAt;
+    private LocalDateTime rideAcceptedAt;
+    private LocalDateTime rideRejectedAt;
+    private LocalDateTime rideCancelledAt;
     private LocalDateTime rideCompletedAt;
 }

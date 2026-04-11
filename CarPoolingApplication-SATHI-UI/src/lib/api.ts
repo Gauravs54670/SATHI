@@ -451,3 +451,23 @@ export async function fetchRideRequests(rideId: number) {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
   return data.data as PassengerRideBookingRequest[];
 }
+
+export async function acceptRideRequest(rideId: number, rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/accept-ride-request?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to accept ride request");
+  return data.message as string;
+}
+
+export async function rejectRideRequest(rideId: number, rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/reject-ride-request?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to reject ride request");
+  return data.message as string;
+}
