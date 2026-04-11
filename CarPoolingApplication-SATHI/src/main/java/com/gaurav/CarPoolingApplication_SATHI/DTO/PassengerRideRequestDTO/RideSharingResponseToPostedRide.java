@@ -13,6 +13,7 @@ import lombok.Setter;
 @Setter
 @Builder
 public class RideSharingResponseToPostedRide {
+    private Long rideId;
     private Long rideRequestId;
     private String passengerName;
     private String passengerSourceAddress;

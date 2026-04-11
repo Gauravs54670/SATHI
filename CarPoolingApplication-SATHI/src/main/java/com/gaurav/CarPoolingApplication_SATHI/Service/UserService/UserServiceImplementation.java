@@ -32,6 +32,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileUpdateReque
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRegistrationResponse;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.DuplicateEntryException;
+import com.gaurav.CarPoolingApplication_SATHI.Exception.TooManyRequestException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
@@ -352,7 +353,7 @@ public class UserServiceImplementation implements UserService, AuthService {
         if (reqCount != null && reqCount >= MAX_OTP_REQUESTS) {
             Long ttl = redisTemplate.getExpire(countKey, TimeUnit.MINUTES);
             long waitMinutes = (ttl != null && ttl > 0) ? ttl : OTP_RATE_LIMIT_MINUTES;
-            throw new RuntimeException("Maximum OTP request limit reached. Please try again after " + waitMinutes + " minutes.");
+            throw new TooManyRequestException("Maximum OTP request limit reached. Please try again after " + waitMinutes + " minutes.");
         }
         if (reqCount == null) 
             redisTemplate.opsForValue().set(countKey, 1, OTP_RATE_LIMIT_MINUTES, TimeUnit.MINUTES);

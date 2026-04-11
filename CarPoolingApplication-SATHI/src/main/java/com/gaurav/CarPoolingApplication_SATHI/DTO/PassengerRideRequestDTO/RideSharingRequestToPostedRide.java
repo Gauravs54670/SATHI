@@ -18,6 +18,6 @@ public class RideSharingRequestToPostedRide {
     private String passengerSourceLocation;
     private Double passengerDestinationLng;
     private Double passengerDestinationLat;
-    private String passengerDestinationAddress;
+    private String passengerDestinationLocation;
     private Integer seatsRequired;
 }

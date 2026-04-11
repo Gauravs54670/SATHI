@@ -328,23 +328,96 @@ export interface AvailablePostedRideDTO {
   driverDestinationAddress: string;
   rideDepartureTime: string;
   totalOfferedSeats: number;
-  basePrice: number[];
-  pricePerKm: number[];
-  totalEstimatedCost: number[];
+  basePrice: number;
+  pricePerKm: number;
+  totalEstimatedCost: number;
   vehicleModel: string;
   vehicleClass: string;
   vehicleCategory: string;
 }
 
-export async function fetchAvailableRides(city?: string) {
+export async function fetchAvailableRides(
+  city?: string, 
+  sLat?: number, 
+  sLng?: number, 
+  dLat?: number, 
+  dLng?: number
+) {
   if (!getAuthToken()) throw new Error("Not logged in");
-  const query = city ? `?city=${encodeURIComponent(city)}` : "";
+  
+  const params = new URLSearchParams();
+  if (city) params.append("city", city);
+  if (sLat !== undefined) params.append("sLat", sLat.toString());
+  if (sLng !== undefined) params.append("sLng", sLng.toString());
+  if (dLat !== undefined) params.append("dLat", dLat.toString());
+  if (dLng !== undefined) params.append("dLng", dLng.toString());
+  
+  const query = params.toString() ? `?${params.toString()}` : "";
   const res = await fetchWithAuth(`${API_BASE}/passenger/available-rides${query}`, {
     method: "GET",
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch available rides");
   return data.data; // returns AvailablePostedRideDTO[]
+}
+
+export interface RideSharingRequestToPostedRide {
+  rideId: number;
+  passengerSourceLng: number;
+  passengerSourceLat: number;
+  passengerSourceLocation: string;
+  passengerDestinationLng: number;
+  passengerDestinationLat: number;
+  passengerDestinationLocation: string;
+  seatsRequired: number;
+}
+
+export interface RideSharingResponseToPostedRide {
+  rideId: number;
+  rideRequestId: number;
+  passengerName: string;
+  passengerSourceAddress: string;
+  passengerDestinationAddress: string;
+  requestStatus: "PENDING" | "ACCEPTED" | "REJECTED";
+  requestedSeats: number;
+  requestedAt: string;
+}
+
+export async function requestRide(payload: RideSharingRequestToPostedRide) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/request-ride`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to request ride");
+  return data.data as RideSharingResponseToPostedRide;
+}
+
+export interface RideRequestUpdatesDTO {
+  rideId: number;
+  rideRequestedId: number;
+  rideRequestStatus: string;
+  requestedAt: string;
+  driverName: string;
+  rideDepartureTime: string;
+  passengerSourceLocation: string;
+  passengerDestinationLocation: string;
+  requestedSeats: number;
+  estimatedFare: number;
+  rideStatus: string;
+  isDriverReachedPickupLocation: boolean;
+}
+
+export async function fetchRideRequestUpdates() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-request-updates`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
+  return data.data as RideRequestUpdatesDTO[];
 }
 
 export async function logoutUser(email: string) {

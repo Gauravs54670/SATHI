@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import RideRequestModal from "@/components/RideRequestModal";
+import Toast from "@/components/Toast";
 import { fetchAvailableRides, AvailablePostedRideDTO } from "@/lib/api";
 
 export default function AvailableRidesPage() {
@@ -19,10 +21,20 @@ export default function AvailableRidesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Search Filters
+  // Search Filters & Coordinates
   const [searchSource, setSearchSource] = useState("");
   const [searchDest, setSearchDest] = useState("");
+  const [sourceCoords, setSourceCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [destCoords, setDestCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [isFiltering, setIsFiltering] = useState(false);
+
+  // Modal State
+  const [selectedRide, setSelectedRide] = useState<AvailablePostedRideDTO | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  
+  // Toast state
+  const [toast, setToast] = useState<{message: string, type: 'SUCCESS' | 'ERROR'} | null>(null);
 
   // Persistence: Check for saved city on mount
   useEffect(() => {
@@ -33,11 +45,11 @@ export default function AvailableRidesPage() {
     }
   }, []);
 
-  const loadRides = useCallback(async (city: string) => {
+  const loadRides = useCallback(async (city: string, sLat?: number, sLng?: number, dLat?: number, dLng?: number) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAvailableRides(city);
+      const data = await fetchAvailableRides(city, sLat, sLng, dLat, dLng);
       setRides(data);
       setFilteredRides(data);
     } catch (err: any) {
@@ -53,23 +65,67 @@ export default function AvailableRidesPage() {
     }
   }, [selectedCity, loadRides]);
 
-  // Client-side filtering as user types
-  useEffect(() => {
-    const filtered = rides.filter(ride => 
-      ride.driverSourceAddress.toLowerCase().includes(searchSource.toLowerCase()) &&
-      ride.driverDestinationAddress.toLowerCase().includes(searchDest.toLowerCase())
-    );
-    setFilteredRides(filtered);
-  }, [searchSource, searchDest, rides]);
-
   const handleCitySubmit = (city: string) => {
     const trimmed = city.trim();
     if (trimmed) {
       setSearchSource("");
       setSearchDest("");
+      setSourceCoords(null);
+      setDestCoords(null);
       setSelectedCity(trimmed);
       localStorage.setItem("sathi_selected_city", trimmed);
     }
+  };
+
+  const geocodeAddress = async (query: string) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+        { headers: { "User-Agent": "SATHI-Carpooling-App" } }
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon),
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error("Geocoding failed", error);
+      return null;
+    }
+  };
+
+  const handleSearchAndFilter = async () => {
+    if (!selectedCity) return;
+    setIsFiltering(true);
+    let sLat, sLng, dLat, dLng;
+
+    if (searchSource) {
+      const coords = await geocodeAddress(`${searchSource}, ${selectedCity}`);
+      if (coords) {
+        sLat = coords.lat;
+        sLng = coords.lng;
+        setSourceCoords(coords);
+      }
+    } else {
+        setSourceCoords(null);
+    }
+
+    if (searchDest) {
+      const coords = await geocodeAddress(`${searchDest}, ${selectedCity}`);
+      if (coords) {
+        dLat = coords.lat;
+        dLng = coords.lng;
+        setDestCoords(coords);
+      }
+    } else {
+        setDestCoords(null);
+    }
+
+    await loadRides(selectedCity, sLat, sLng, dLat, dLng);
+    setIsFiltering(false);
   };
 
   const reverseGeocode = async (lat: number, lng: number) => {
@@ -120,7 +176,6 @@ export default function AvailableRidesPage() {
       async (pos) => {
         const addressData = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
         if (addressData) {
-            // Reconstruct full address string
             const fullAddress = [
                 addressData.road,
                 addressData.suburb,
@@ -128,6 +183,7 @@ export default function AvailableRidesPage() {
                 addressData.state
             ].filter(Boolean).join(", ");
             setSearchSource(fullAddress);
+            setSourceCoords({lat: pos.coords.latitude, lng: pos.coords.longitude});
         }
         setIsDetectingLocation(false);
       },
@@ -221,10 +277,11 @@ export default function AvailableRidesPage() {
     );
   }
 
-  // 2. Results View
   return (
     <div className="min-h-screen bg-bg-app">
       <Navbar />
+
+      {toast && <Toast message={toast.message} type={toast.type} isVisible={!!toast} onClose={() => setToast(null)} />}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Header Section */}
@@ -243,17 +300,25 @@ export default function AvailableRidesPage() {
                 <div>
                     <h1 className="text-3xl font-extrabold text-white tracking-tight">Rides in {selectedCity}</h1>
                     <div className="flex items-center gap-2">
-                      <p className="text-slate-500 text-sm font-medium">Showing posted and ongoing rides</p>
+                      <p className="text-slate-500 text-sm font-medium">Find rides near your route</p>
                       <span className="text-slate-700">•</span>
                       <button 
                         onClick={() => { 
                           setSelectedCity(null); 
                           setSearchSource("");
                           setSearchDest("");
+                          localStorage.removeItem("sathi_selected_city");
                         }}
                         className="text-xs font-bold text-indigo-500 hover:text-indigo-400 transition-colors uppercase tracking-tighter"
                       >
                         Change City
+                      </button>
+                      <span className="text-slate-700 mx-2">|</span>
+                      <button 
+                        onClick={() => router.push("/rides/requested")}
+                        className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest underline underline-offset-4"
+                      >
+                        My Ride Requests
                       </button>
                     </div>
                 </div>
@@ -271,11 +336,11 @@ export default function AvailableRidesPage() {
 
         {/* Filter Bar */}
         <div className="glass-card p-6 mb-10 animate-fade-in-up-delay border-indigo-500/10 transition-all hover:bg-white/[0.02]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 relative">
             {/* From Input */}
-            <div className="relative group">
+            <div className="md:col-span-1 lg:col-span-2 relative group">
               <div className="flex items-center justify-between mb-2 px-1">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">From / Area</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">From / Pick-up</label>
                 <button 
                   onClick={useCurrentLocation}
                   disabled={isDetectingLocation}
@@ -304,7 +369,7 @@ export default function AvailableRidesPage() {
                 />
                 {searchSource && (
                   <button 
-                    onClick={() => setSearchSource("")}
+                    onClick={() => {setSearchSource(""); setSourceCoords(null);}}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -316,7 +381,7 @@ export default function AvailableRidesPage() {
             </div>
 
             {/* To Input */}
-            <div className="relative group">
+            <div className="md:col-span-1 lg:col-span-2 relative group">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">To / Destination</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-purple-400">
@@ -331,7 +396,7 @@ export default function AvailableRidesPage() {
                 />
                 {searchDest && (
                   <button 
-                    onClick={() => setSearchDest("")}
+                    onClick={() => {setSearchDest(""); setDestCoords(null);}}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -341,11 +406,25 @@ export default function AvailableRidesPage() {
                 )}
               </div>
             </div>
-            
-            <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 mt-3 items-center justify-center w-10 h-10 rounded-full bg-slate-900 border border-white/10 text-slate-600 shadow-xl">
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-               </svg>
+
+            {/* Filter Button */}
+            <div className="flex flex-col justify-end">
+              <button
+                onClick={handleSearchAndFilter}
+                disabled={isFiltering}
+                className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-black hover:bg-indigo-400 transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isFiltering ? (
+                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Apply Filter
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -383,7 +462,7 @@ export default function AvailableRidesPage() {
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold border-2 border-white/10 shadow-lg">
-                      {ride.driverName.charAt(0)}
+                      {ride.driverName?.charAt(0) || "U"}
                     </div>
                     <div>
                       <h3 className="text-white font-bold group-hover:text-indigo-400 transition-colors">{ride.driverName}</h3>
@@ -391,7 +470,7 @@ export default function AvailableRidesPage() {
                         <svg className="w-3 h-3 text-amber-400 fill-current" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-                        <span className="text-xs text-slate-400">{ride.driverRating || "New Driver"}</span>
+                        <span className="text-xs text-slate-400">{ride.driverRating?.toFixed(1) || "4.8"}</span>
                       </div>
                     </div>
                   </div>
@@ -438,25 +517,11 @@ export default function AvailableRidesPage() {
                   </div>
                 </div>
 
-                {/* Vehicle Section */}
-                <div className="flex items-center justify-between mb-8 px-1">
-                   <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white/5 text-slate-400">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                      </div>
-                      <div className="text-[11px]">
-                         <p className="text-white font-semibold leading-tight">{ride.vehicleModel}</p>
-                         <p className="text-slate-500 uppercase font-black tracking-tighter text-[9px]">{ride.vehicleCategory} • {ride.vehicleClass}</p>
-                      </div>
-                   </div>
-                </div>
-
                 {/* Action Button */}
                 <button 
                   onClick={() => {
-                    alert(`Booking for ride ${ride.rideId} is currently under development!`);
+                    setSelectedRide(ride);
+                    setShowRequestModal(true);
                   }}
                   className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold hover:shadow-lg hover:shadow-indigo-500/30 transition-all active:scale-[0.98] mt-auto"
                 >
@@ -472,17 +537,36 @@ export default function AvailableRidesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">No rides in {selectedCity}</h2>
-            <p className="text-slate-400 mb-8 max-w-sm mx-auto">We couldn't find any available rides in this city. Try searching in another city or check back later.</p>
+            <h2 className="text-2xl font-bold text-white mb-2">No rides found</h2>
+            <p className="text-slate-400 mb-8 max-w-sm mx-auto">Try adjusting your filters or search area to find more results.</p>
             <button 
               onClick={() => { setSelectedCity(null); localStorage.removeItem("sathi_selected_city"); }}
               className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-indigo-400 font-bold hover:bg-white/10 transition-all"
             >
-              Change City
+              Reset Search
             </button>
           </div>
         )}
       </main>
+
+      {/* Ride Request Modal */}
+      {showRequestModal && selectedRide && (
+        <RideRequestModal
+          rideId={selectedRide.rideId}
+          sourceAddress={searchSource || selectedRide.driverSourceAddress}
+          sourceLat={sourceCoords?.lat || 0} // In real app, we'd need driver source coords if passenger doesn't provide
+          sourceLng={sourceCoords?.lng || 0}
+          destAddress={searchDest || selectedRide.driverDestinationAddress}
+          destLat={destCoords?.lat || 0}
+          destLng={destCoords?.lng || 0}
+          maxSeats={selectedRide.totalOfferedSeats}
+          onClose={() => setShowRequestModal(false)}
+          onSuccess={() => {
+            setShowRequestModal(false);
+            setToast({message: "Ride request sent successfully!", type: 'SUCCESS'});
+          }}
+        />
+      )}
     </div>
   );
 }

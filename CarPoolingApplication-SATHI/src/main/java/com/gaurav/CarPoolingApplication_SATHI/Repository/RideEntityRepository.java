@@ -77,4 +77,42 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
             """)
     List<AvailablePostedRideDTO> findAvailableRides(
         @Param("now") LocalDateTime now, @Param("city") String city);
+
+    @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO(
+                r.rideId,
+                r.driverProfileEntity.user.userFullName,
+                r.driverProfileEntity.user.email,
+                r.driverProfileEntity.user.averageRating,
+                r.sourceAddress,
+                r.destinationAddress,
+                r.rideDepartureTime,
+                r.offeredSeats,
+                r.baseFare,
+                r.pricePerKm,
+                r.estimatedFare,
+                r.driverProfileEntity.vehicleModel,
+                r.driverProfileEntity.vehicleClass,
+                r.driverProfileEntity.vehicleCategory
+            )
+            FROM RideEntity r
+            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+            AND r.rideDepartureTime >= :now
+            AND r.totalAvailableSeats > 0
+            AND (:city IS NULL OR :city = '' OR LOWER(r.sourceAddress) LIKE LOWER(CONCAT('%', :city, '%')))
+            AND (:sLat IS NULL OR (r.sourceLat BETWEEN :sLat - :radius AND :sLat + :radius))
+            AND (:sLng IS NULL OR (r.sourceLng BETWEEN :sLng - :radius AND :sLng + :radius))
+            AND (:dLat IS NULL OR (r.destinationLat BETWEEN :dLat - :radius AND :dLat + :radius))
+            AND (:dLng IS NULL OR (r.destinationLng BETWEEN :dLng - :radius AND :dLng + :radius))
+            ORDER BY r.rideDepartureTime ASC
+            """)
+    List<AvailablePostedRideDTO> findAvailableRidesWithFilter(
+        @Param("now") LocalDateTime now, 
+        @Param("city") String city,
+        @Param("sLat") Double sLat,
+        @Param("sLng") Double sLng,
+        @Param("dLat") Double dLat,
+        @Param("dLng") Double dLng,
+        @Param("radius") Double radius
+    );
 }

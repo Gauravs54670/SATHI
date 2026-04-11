@@ -16,4 +16,5 @@ public interface DriverService {
     RidePostResponseDTO postRide(String email, RideRequestDTO rideRequestDTO);
     List<DriverPostedRides> getActiveRideForDriver(String email);
     Boolean hasActiveRide(String email);
+    
 }

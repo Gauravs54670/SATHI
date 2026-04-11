@@ -18,10 +18,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
-@Component @Slf4j
+@Component
+@Slf4j
 public class JWTAuthenticationFilter extends OncePerRequestFilter {
     private final JWTUtils jwtUtils;
     private final CustomUserDetailsService customUserDetailsService;
+
     public JWTAuthenticationFilter(
             JWTUtils jwtUtils,
             CustomUserDetailsService customUserDetailsService) {
@@ -31,40 +33,37 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
     @SuppressWarnings("null")
     @Override
-protected void doFilterInternal(
-        HttpServletRequest request,
-        HttpServletResponse response,
-        FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
-    String requestPath = request.getServletPath();
-    if (requestPath.startsWith("/auth") ||
-            requestPath.startsWith("/v3/api-docs") ||
-            requestPath.startsWith("/swagger-ui")) {
-        filterChain.doFilter(request, response);
-        return;
-    }
-
-    String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-    if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-        String jwtToken = authorizationHeader.substring(7);
-        try {
-            if (jwtUtils.validateToken(jwtToken)) {                           
-                String username = jwtUtils.getUsername(jwtToken);             
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities()
-                            );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Authentication failed: {}", e.getMessage()); 
+        String requestPath = request.getServletPath();
+        if (requestPath.startsWith("/auth") ||
+                requestPath.startsWith("/v3/api-docs") ||
+                requestPath.startsWith("/swagger-ui")) {
+            filterChain.doFilter(request, response);
+            return;
         }
-    }
-    filterChain.doFilter(request, response); 
-}
-}
 
+        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            String jwtToken = authorizationHeader.substring(7);
+            try {
+                if (jwtUtils.validateToken(jwtToken)) {
+                    String username = jwtUtils.getUsername(jwtToken);
+                    if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                        UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Authentication failed: {}", e.getMessage());
+            }
+        }
+        filterChain.doFilter(request, response);
+    }
+}

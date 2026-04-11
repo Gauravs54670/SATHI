@@ -66,4 +66,20 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now());
         return new ResponseEntity<>(exceptionDescription, HttpStatus.NOT_FOUND);
     }
+    @ExceptionHandler(TooManyRequestException.class)
+    public ResponseEntity<ExceptionDescription> handleTooManyRequestException(TooManyRequestException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    @ExceptionHandler(InvalidRideStateException.class)
+    public ResponseEntity<ExceptionDescription> handleInvalidRideStateException(InvalidRideStateException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.BAD_REQUEST);
+    }
 }

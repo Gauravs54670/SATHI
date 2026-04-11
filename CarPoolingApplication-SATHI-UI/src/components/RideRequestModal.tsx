@@ -1,0 +1,168 @@
+"use client";
+
+import React, { useState } from "react";
+import { RideSharingRequestToPostedRide, requestRide } from "@/lib/api";
+
+interface RideRequestModalProps {
+  rideId: number;
+  sourceAddress: string;
+  sourceLat: number;
+  sourceLng: number;
+  destAddress: string;
+  destLat: number;
+  destLng: number;
+  maxSeats: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function RideRequestModal({
+  rideId,
+  sourceAddress,
+  sourceLat,
+  sourceLng,
+  destAddress,
+  destLat,
+  destLng,
+  maxSeats,
+  onClose,
+  onSuccess,
+}: RideRequestModalProps) {
+  const [seats, setSeats] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const payload: RideSharingRequestToPostedRide = {
+      rideId,
+      passengerSourceLat: sourceLat,
+      passengerSourceLng: sourceLng,
+      passengerSourceLocation: sourceAddress,
+      passengerDestinationLat: destLat,
+      passengerDestinationLng: destLng,
+      passengerDestinationLocation: destAddress,
+      seatsRequired: seats,
+    };
+
+    try {
+      await requestRide(payload);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || "Failed to submit ride request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div 
+        className="glass-card w-full max-w-lg border-white/10 shadow-2xl animate-scale-in overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+          <div>
+            <h2 className="text-xl font-black text-white tracking-tight">Request Ride</h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Ride ID: #{rideId}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-slate-500 hover:text-white transition-all">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-8 space-y-8">
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 animate-shake">
+              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm font-semibold">{error}</p>
+            </div>
+          )}
+
+          {/* Non-editable details */}
+          <div className="space-y-6">
+            <div className="relative pl-8">
+              <div className="absolute left-0 top-1.5 w-5 h-5 rounded-full bg-slate-900 border-2 border-indigo-500 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              </div>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Pick-up Location</p>
+              <p className="text-white text-sm font-medium leading-relaxed">{sourceAddress}</p>
+              <p className="text-[9px] text-slate-600 font-mono mt-1">{sourceLat.toFixed(6)}, {sourceLng.toFixed(6)}</p>
+            </div>
+
+            <div className="relative pl-8">
+              <div className="absolute left-0 top-1.5 w-5 h-5 rounded-full bg-slate-900 border-2 border-purple-500 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+              </div>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Destination</p>
+              <p className="text-white text-sm font-medium leading-relaxed">{destAddress}</p>
+              <p className="text-[9px] text-slate-600 font-mono mt-1">{destLat.toFixed(6)}, {destLng.toFixed(6)}</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-white/5" />
+
+          {/* Editable: Seats */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Requested Seats</label>
+              <span className="text-xs font-bold text-indigo-400">{maxSeats} max available</span>
+            </div>
+            <div className="flex items-center gap-6">
+              <button 
+                type="button"
+                onClick={() => setSeats(Math.max(1, seats - 1))}
+                className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all font-black text-2xl"
+              >
+                -
+              </button>
+              <div className="flex-grow h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center">
+                <span className="text-2xl font-black text-white">{seats}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSeats(Math.min(maxSeats, seats + 1))}
+                className="w-14 h-14 rounded-2xl bg-indigo-500 flex items-center justify-center text-white hover:bg-indigo-400 transition-all font-black text-2xl shadow-lg shadow-indigo-500/20"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 flex gap-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                  Confirm Request
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

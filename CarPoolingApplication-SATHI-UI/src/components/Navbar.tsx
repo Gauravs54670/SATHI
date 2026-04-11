@@ -33,6 +33,22 @@ export default function Navbar() {
             </span>
           </div>
 
+          {/* Navigation Links (Desktop) */}
+          <div className="hidden md:flex items-center gap-8 ml-8 flex-grow justify-start">
+            <button 
+              onClick={() => router.push("/rides/available")}
+              className="text-sm font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-widest"
+            >
+              Find a Ride
+            </button>
+            <button 
+              onClick={() => router.push("/rides/requested")}
+              className="text-sm font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-widest"
+            >
+              My Requests
+            </button>
+          </div>
+
           {/* Right side — Avatar (logged in) or Sign In button (guest) */}
           <div className="relative">
             {isLoggedIn && user ? (
