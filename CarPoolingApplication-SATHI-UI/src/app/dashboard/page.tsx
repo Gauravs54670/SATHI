@@ -292,40 +292,65 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* Show My Posted Rides Row for Drivers */}
-              {isDriver && (
-                <div className="mt-8 animate-fade-in-up">
-                   <h2 className="text-xl font-semibold text-white mb-4">Driver Management</h2>
+              {/* My Posted Rides Row for Drivers - only if they have active rides */}
+              {isDriver && hasActiveRide && (
+                <div className="mt-10 animate-fade-in-up">
+                   <div className="flex items-center justify-between mb-6">
+                     <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
+                       <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                       Driver Management
+                     </h2>
+                   </div>
+
                    <button 
-                    onClick={handleFetchActiveRides}
+                    onClick={() => {
+                      if (showRidesList) {
+                        setShowRidesList(false);
+                      } else {
+                        handleFetchActiveRides();
+                      }
+                    }}
                     disabled={isFetchingRides}
-                    className="w-full glass-card p-6 text-left border-indigo-500/20 hover:border-indigo-500/50
-                    transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 group disabled:opacity-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center
-                          group-hover:bg-indigo-500/20 transition-colors">
+                    className={`w-full glass-card p-6 text-left transition-all duration-500 group relative overflow-hidden ${
+                      showRidesList 
+                      ? 'border-indigo-500/50 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.1)]' 
+                      : 'border-indigo-500/20 hover:border-indigo-500/50 hover:bg-white/[0.02]'
+                    }`}>
+                    {/* Animated background glow when open */}
+                    {showRidesList && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 animate-pulse" />
+                    )}
+
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex items-center gap-5">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                          showRidesList ? 'bg-indigo-500 text-white' : 'bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20'
+                        }`}>
                           {isFetchingRides ? (
-                            <svg className="animate-spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                           ) : (
-                            <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
                           )}
                         </div>
                         <div>
-                          <p className="text-lg font-bold text-white">My Posted Rides</p>
-                          <p className="text-slate-400 text-sm mt-0.5">Manage your active rides and shared requests</p>
+                          <p className="text-xl font-black text-white tracking-tight">Manage Posted Rides</p>
+                          <p className="text-slate-400 text-sm font-medium">Review your routes and handle join requests</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
-                        View Details
-                        <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      <div className={`flex items-center gap-2 font-black text-sm uppercase tracking-widest transition-all ${
+                        showRidesList ? 'text-white' : 'text-indigo-400'
+                      }`}>
+                        {showRidesList ? 'Close Management' : 'View Rides'}
+                        <svg 
+                          className={`w-5 h-5 transition-transform duration-300 ${showRidesList ? 'rotate-180' : 'group-hover:translate-x-1'}`} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={showRidesList ? "M19 9l-7 7-7-7" : "M13 7l5 5m0 0l-5 5m5-5H6"} />
                         </svg>
                       </div>
                     </div>
@@ -335,68 +360,62 @@ export default function DashboardPage() {
 
               {/* Active Rides List Section */}
               {showRidesList && postedRides.length > 0 && (
-                <div className="mt-8 animate-fade-in-up">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-white">Your Active Ride Details</h2>
-                    <button 
-                      onClick={() => setShowRidesList(false)}
-                      className="text-slate-400 hover:text-white transition-colors"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mt-6 animate-fade-in-up space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {postedRides.map((ride) => (
-                      <div key={ride.rideId} className="glass-card p-5 border-indigo-500/30">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${ride.rideStatus === 'RIDE_STARTED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
-                              {ride.rideStatus.replace('_', ' ')}
-                            </span>
-                            <p className="text-white font-semibold mt-2">Ride #{ride.rideId}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-indigo-400 font-bold text-lg">₹{ride.estimatedFare}</p>
-                            <p className="text-slate-500 text-[10px]">Estimated Fare</p>
-                          </div>
+                      <div key={ride.rideId} className="glass-card p-6 border-indigo-500/20 hover:border-indigo-500/40 transition-all group">
+                        <div className="flex justify-between items-start mb-6">
+                            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-1.5">
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                                    {ride.rideStatus.replace('_', ' ')}
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-2xl font-black text-white tracking-tighter">₹{ride.estimatedFare}</p>
+                                <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Est. Fare</p>
+                            </div>
                         </div>
 
-                        <div className="space-y-3 mb-6">
-                          <div className="flex gap-3">
-                            <div className="flex flex-col items-center">
-                              <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                              <div className="w-0.5 h-full bg-slate-800 my-1" />
-                              <div className="w-2 h-2 rounded-full border border-indigo-500" />
+                        {/* Route Path */}
+                        <div className="space-y-4 mb-8">
+                            <div className="flex gap-4">
+                                <div className="flex flex-col items-center pt-1.5">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
+                                    <div className="w-0.5 h-10 bg-gradient-to-b from-indigo-500 to-purple-500 my-1 opacity-20" />
+                                    <div className="w-2.5 h-2.5 rounded-full border-2 border-purple-500" />
+                                </div>
+                                <div className="flex-1 space-y-4">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Pick-up</p>
+                                        <p className="text-white text-sm font-bold line-clamp-1">{ride.sourceAddress}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Destination</p>
+                                        <p className="text-white text-sm font-bold line-clamp-1">{ride.destinationAddress}</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex flex-col gap-4">
-                              <div>
-                                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">From</p>
-                                <p className="text-slate-200 text-sm line-clamp-1">{ride.sourceAddress}</p>
-                              </div>
-                              <div>
-                                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">To</p>
-                                <p className="text-slate-200 text-sm line-clamp-1">{ride.destinationAddress}</p>
-                              </div>
+                        </div>
+
+                        {/* Bottom Info Bar */}
+                        <div className="grid grid-cols-2 gap-2 py-4 border-y border-white/5 mb-6">
+                            <div className="text-center">
+                                <p className="text-white font-black text-sm">{new Date(ride.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">Time</p>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-slate-400">
-                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                             </svg>
-                             <p className="text-xs">{new Date(ride.rideDepartureTime).toLocaleString()}</p>
-                          </div>
+                            <div className="text-center border-l border-white/5">
+                                <p className="text-white font-black text-sm">{ride.totalAvailableSeats}</p>
+                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">Seats</p>
+                            </div>
                         </div>
 
                         <button 
-                          onClick={() => {
-                            setToastMessage("Redirecting to ride sharing requests... (Feature coming soon)");
-                            setTimeout(() => setToastMessage(null), 3000);
-                          }}
-                          className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-all flex items-center justify-center gap-2 group"
+                          onClick={() => router.push(`/ride/${ride.rideId}/requests`)}
+                          className="w-full py-4 rounded-xl bg-indigo-500 text-white text-xs font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-3 active:scale-[0.98]"
                         >
-                          Click to see the ride sharing requests
-                          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          View Ride Requests
+                          <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                           </svg>
                         </button>
                       </div>

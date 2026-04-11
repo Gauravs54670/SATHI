@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
@@ -95,6 +96,19 @@ public class DriverController {
             "status", "success",
             "message", "Active ride presence checked successfully",
             "data", hasActiveRide
+        ), HttpStatus.OK);
+    }
+    // get ride requests for active ride
+    @GetMapping("/ride-requests")
+    public ResponseEntity<?> getRideRequests(Authentication authentication, 
+            @RequestParam("rideId") Long rideId) {
+        String email = authentication.getName();
+        List<PassengerRideBookingRequestsDTO> rideRequests = this.driverService
+            .getMyPostedRidesRequests(email, rideId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride requests fetched successfully",
+            "data", rideRequests
         ), HttpStatus.OK);
     }
 }

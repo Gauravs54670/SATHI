@@ -24,6 +24,7 @@ public class AvailablePostedRideDTO {
     private BigDecimal basePrice;
     private BigDecimal pricePerKm;
     private BigDecimal totalEstimatedCost;
+    private BigDecimal totalDistance;
     private String vehicleModel;
     private String vehicleClass;
     private String vehicleCategory;
@@ -39,6 +40,7 @@ public class AvailablePostedRideDTO {
             BigDecimal basePrice, 
             BigDecimal pricePerKm, 
             BigDecimal totalEstimatedCost, 
+            BigDecimal totalDistance,
             String vehicleModel, 
             VehicleClass vehicleClass, 
             VehicleCategory vehicleCategory) {
@@ -53,6 +55,7 @@ public class AvailablePostedRideDTO {
             this.basePrice = basePrice;
             this.pricePerKm = pricePerKm;
             this.totalEstimatedCost = totalEstimatedCost;
+            this.totalDistance = totalDistance;
             this.vehicleModel = vehicleModel;
             this.vehicleClass = vehicleClass.name();
             this.vehicleCategory = vehicleCategory.name();

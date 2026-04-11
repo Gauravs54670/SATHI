@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
@@ -16,5 +17,5 @@ public interface DriverService {
     RidePostResponseDTO postRide(String email, RideRequestDTO rideRequestDTO);
     List<DriverPostedRides> getActiveRideForDriver(String email);
     Boolean hasActiveRide(String email);
-    
+    List<PassengerRideBookingRequestsDTO> getMyPostedRidesRequests(String email, Long rideId);
 }

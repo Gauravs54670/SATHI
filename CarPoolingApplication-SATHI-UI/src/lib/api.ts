@@ -57,13 +57,13 @@ export async function loginAndFetchProfile(email: string, password: string) {
   });
   const loginData = await loginRes.json();
   if (!loginRes.ok) throw new Error(loginData.error || loginData.message || "Invalid email or password");
-  
+
   const token = loginData.token;
   if (!token) throw new Error("No token received from backend");
 
   // Temporarily store token so subsequent fetch uses it properly in browser
   if (typeof window !== "undefined") {
-     localStorage.setItem("sathi_token", token);
+    localStorage.setItem("sathi_token", token);
   }
 
   // 2. Fetch the actual profile using the JWT
@@ -72,7 +72,7 @@ export async function loginAndFetchProfile(email: string, password: string) {
   });
   const profileData = await profileRes.json();
   if (!profileRes.ok) throw new Error(profileData.exceptionMessage || profileData.message || "Failed to fetch profile");
-  
+
   return { token, profile: profileData };
 }
 
@@ -331,27 +331,28 @@ export interface AvailablePostedRideDTO {
   basePrice: number;
   pricePerKm: number;
   totalEstimatedCost: number;
+  totalDistance: number;
   vehicleModel: string;
   vehicleClass: string;
   vehicleCategory: string;
 }
 
 export async function fetchAvailableRides(
-  city?: string, 
-  sLat?: number, 
-  sLng?: number, 
-  dLat?: number, 
+  city?: string,
+  sLat?: number,
+  sLng?: number,
+  dLat?: number,
   dLng?: number
 ) {
   if (!getAuthToken()) throw new Error("Not logged in");
-  
+
   const params = new URLSearchParams();
   if (city) params.append("city", city);
   if (sLat !== undefined) params.append("sLat", sLat.toString());
   if (sLng !== undefined) params.append("sLng", sLng.toString());
   if (dLat !== undefined) params.append("dLat", dLat.toString());
   if (dLng !== undefined) params.append("dLng", dLng.toString());
-  
+
   const query = params.toString() ? `?${params.toString()}` : "";
   const res = await fetchWithAuth(`${API_BASE}/passenger/available-rides${query}`, {
     method: "GET",
@@ -410,6 +411,17 @@ export interface RideRequestUpdatesDTO {
   isDriverReachedPickupLocation: boolean;
 }
 
+export interface PassengerRideBookingRequest {
+  rideRequestId: number;
+  passengerName: string;
+  pickupLocation: string;
+  dropLocation: string;
+  rideRequestStatus: string;
+  requestedSeats: number;
+  distanceFromDriver: number;
+  requestedAt: string;
+}
+
 export async function fetchRideRequestUpdates() {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/passenger/ride-request-updates`, {
@@ -428,4 +440,14 @@ export async function logoutUser(email: string) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Logout failed");
   return data.message;
+}
+
+export async function fetchRideRequests(rideId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/ride-requests?rideId=${rideId}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
+  return data.data as PassengerRideBookingRequest[];
 }

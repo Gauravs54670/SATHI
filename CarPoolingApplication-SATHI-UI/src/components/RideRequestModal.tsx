@@ -12,6 +12,10 @@ interface RideRequestModalProps {
   destLat: number;
   destLng: number;
   maxSeats: number;
+  totalDistance: number;
+  basePrice: number;
+  pricePerKm: number;
+  totalEstimatedCost: number;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -25,6 +29,10 @@ export default function RideRequestModal({
   destLat,
   destLng,
   maxSeats,
+  totalDistance,
+  basePrice,
+  pricePerKm,
+  totalEstimatedCost,
   onClose,
   onSuccess,
 }: RideRequestModalProps) {
@@ -59,12 +67,13 @@ export default function RideRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in overflow-y-auto" onClick={onClose}>
       <div 
-        className="glass-card w-full max-w-lg border-white/10 shadow-2xl animate-scale-in overflow-hidden"
+        className="glass-card w-full max-w-lg border-white/10 shadow-2xl animate-scale-in flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        {/* Sticky Header */}
+        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02] shrink-0">
           <div>
             <h2 className="text-xl font-black text-white tracking-tight">Request Ride</h2>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Ride ID: #{rideId}</p>
@@ -76,7 +85,8 @@ export default function RideRequestModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-8">
+        {/* Scrollable Content */}
+        <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 animate-shake">
               <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -107,6 +117,14 @@ export default function RideRequestModal({
             </div>
           </div>
 
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
+            <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <span className="text-xs font-bold text-slate-400">Total Trip Distance:</span>
+            <span className="text-xs font-black text-white">{totalDistance?.toFixed(1) || "0.0"} km</span>
+          </div>
+
           <div className="h-px bg-white/5" />
 
           {/* Editable: Seats */}
@@ -133,6 +151,29 @@ export default function RideRequestModal({
               >
                 +
               </button>
+            </div>
+          </div>
+
+          {/* Fare Summary */}
+          <div className="p-5 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 space-y-3">
+            <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <span>Fare Breakdown</span>
+              <span className="text-indigo-400">Fixed Rates</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Base Fare</span>
+                <span className="text-white font-bold">₹{basePrice}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-400">Price per km</span>
+                <span className="text-white font-bold">₹{pricePerKm}</span>
+              </div>
+              <div className="h-px bg-white/5 my-1" />
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-slate-500 uppercase">Estimated Total</span>
+                <span className="text-xl font-black text-indigo-400">₹{totalEstimatedCost}</span>
+              </div>
             </div>
           </div>
 

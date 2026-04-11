@@ -82,4 +82,12 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now());
         return new ResponseEntity<>(exceptionDescription, HttpStatus.BAD_REQUEST);
     }
+    @ExceptionHandler(NoEntryFoundException.class)
+    public ResponseEntity<ExceptionDescription> handleNoEntryFoundException(NoEntryFoundException ex) {
+        ExceptionDescription exceptionDescription = new ExceptionDescription(
+                HttpStatus.NOT_FOUND.value(),
+                ex.getMessage(),
+                LocalDateTime.now());
+        return new ResponseEntity<>(exceptionDescription, HttpStatus.NOT_FOUND);
+    }
 }

@@ -475,8 +475,14 @@ export default function AvailableRidesPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-black text-indigo-400 tracking-tight">₹{ride.totalEstimatedCost}</p>
-                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-tighter">EST. COST</p>
+                    <div className="flex flex-col items-end">
+                      <p className="text-2xl font-black text-indigo-400 tracking-tight">₹{ride.totalEstimatedCost}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[9px] font-bold text-slate-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">₹{ride.pricePerKm}/km</span>
+                        <span className="text-[9px] font-bold text-slate-500 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">₹{ride.basePrice} base</span>
+                      </div>
+                      <p className="text-[9px] uppercase font-black text-slate-600 tracking-widest mt-1">Total Est. Fare</p>
+                    </div>
                   </div>
                 </div>
 
@@ -502,7 +508,7 @@ export default function AvailableRidesPage() {
                 </div>
 
                 {/* Ride Stats */}
-                <div className="grid grid-cols-3 gap-2 py-4 border-t border-b border-white/5 mb-6">
+                <div className="grid grid-cols-4 gap-2 py-4 border-t border-b border-white/5 mb-6">
                   <div className="text-center">
                     <p className="text-white font-bold text-sm">{new Date(ride.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     <p className="text-[10px] font-bold text-slate-600 uppercase">Time</p>
@@ -510,6 +516,10 @@ export default function AvailableRidesPage() {
                   <div className="text-center border-x border-white/5">
                     <p className="text-white font-bold text-sm">{ride.totalOfferedSeats}</p>
                     <p className="text-[10px] font-bold text-slate-600 uppercase">Seats</p>
+                  </div>
+                  <div className="text-center border-r border-white/5">
+                    <p className="text-white font-bold text-sm">{ride.totalDistance?.toFixed(1) || "0.0"} <span className="text-[10px]">km</span></p>
+                    <p className="text-[10px] font-bold text-slate-600 uppercase">Dist.</p>
                   </div>
                   <div className="text-center">
                     <p className="text-white font-bold text-sm">{new Date(ride.rideDepartureTime).toLocaleDateString([], { day: '2-digit', month: 'short' })}</p>
@@ -560,6 +570,10 @@ export default function AvailableRidesPage() {
           destLat={destCoords?.lat || 0}
           destLng={destCoords?.lng || 0}
           maxSeats={selectedRide.totalOfferedSeats}
+          totalDistance={selectedRide.totalDistance}
+          basePrice={selectedRide.basePrice}
+          pricePerKm={selectedRide.pricePerKm}
+          totalEstimatedCost={selectedRide.totalEstimatedCost}
           onClose={() => setShowRequestModal(false)}
           onSuccess={() => {
             setShowRequestModal(false);

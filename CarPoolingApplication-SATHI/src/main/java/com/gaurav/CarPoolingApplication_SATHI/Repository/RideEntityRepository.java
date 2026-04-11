@@ -64,6 +64,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
                 r.baseFare,
                 r.pricePerKm,
                 r.estimatedFare,
+                r.estimatedDistanceOfRide,
                 r.driverProfileEntity.vehicleModel,
                 r.driverProfileEntity.vehicleClass,
                 r.driverProfileEntity.vehicleCategory
@@ -91,6 +92,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
                 r.baseFare,
                 r.pricePerKm,
                 r.estimatedFare,
+                r.estimatedDistanceOfRide,
                 r.driverProfileEntity.vehicleModel,
                 r.driverProfileEntity.vehicleClass,
                 r.driverProfileEntity.vehicleCategory

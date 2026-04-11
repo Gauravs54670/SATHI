@@ -41,6 +41,7 @@ public class PassengerServiceImplementation implements PassengerService {
     // ride requst otp stored into redis
     private static final String RIDE_REQUEST_OTP_PREFIX = "ride:request:user";
     private static final long RIDE_REQUEST_OTP_TTL = 15;
+    private static final String ACTIVE_RIDES_REQUESTS_CACHE_PREFIX = "active:rides:requests:";
     // Secure random generator for OTP
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     // ride request updates cache key
@@ -193,6 +194,10 @@ public class PassengerServiceImplementation implements PassengerService {
             .build();
 
         this.passengerRideRequestRepository.save(passengerRideRequestEntity);
+        
+        // Invalidate the driver's ride request cache for this ride
+        this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId());
+        
         String otp = generateOtp();
         String otpKey = RIDE_REQUEST_OTP_PREFIX + ":" + rideEntity.getRideId() + ":" 
                 + passengerRideRequestEntity.getRideRequestId() + ":" + user.getEmail();
