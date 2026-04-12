@@ -20,7 +20,7 @@ public class AvailablePostedRideDTO {
     private String driverSourceAddress;
     private String driverDestinationAddress;
     private LocalDateTime rideDepartureTime;
-    private Integer totalOfferedSeats;
+    private Integer totalAvailableSeats;
     private BigDecimal basePrice;
     private BigDecimal pricePerKm;
     private BigDecimal totalEstimatedCost;
@@ -36,7 +36,7 @@ public class AvailablePostedRideDTO {
             String driverSourceAddress, 
             String driverDestinationAddress, 
             LocalDateTime rideDepartureTime, 
-            Integer totalOfferedSeats, 
+            Integer totalAvailableSeats, 
             BigDecimal basePrice, 
             BigDecimal pricePerKm, 
             BigDecimal totalEstimatedCost, 
@@ -51,7 +51,7 @@ public class AvailablePostedRideDTO {
             this.driverSourceAddress = driverSourceAddress;
             this.driverDestinationAddress = driverDestinationAddress;
             this.rideDepartureTime = rideDepartureTime;
-            this.totalOfferedSeats = totalOfferedSeats;
+            this.totalAvailableSeats = totalAvailableSeats;
             this.basePrice = basePrice;
             this.pricePerKm = pricePerKm;
             this.totalEstimatedCost = totalEstimatedCost;

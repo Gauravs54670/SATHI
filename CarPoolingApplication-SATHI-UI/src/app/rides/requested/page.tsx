@@ -197,6 +197,12 @@ export default function MyRideRequestsPage() {
                          <p className="text-[9px] font-black uppercase tracking-widest">Req ID</p>
                          <p className="text-xs font-mono text-white">#{req.rideRequestedId}</p>
                     </div>
+                    {req.numberOfRequests && req.numberOfRequests > 1 && (
+                         <div className="mt-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                             <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                             Attempt #{req.numberOfRequests}
+                         </div>
+                    )}
                 </div>
               </div>
             ))}

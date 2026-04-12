@@ -86,7 +86,7 @@ export default function PostRidePage() {
       destinationLat: drop.lat,
       destinationLong: drop.lng,
       destinationAddress: drop.address,
-      departureTime: new Date(departureTime).toISOString(),
+      departureTime: departureTime.length === 16 ? departureTime + ":00" : departureTime,
       availableSeats,
       pricePerKm,
       totalDistanceKm: distance,
@@ -95,7 +95,7 @@ export default function PostRidePage() {
 
     try {
       await postRide(payload);
-      triggerToast("Ride posted successfully! (Testing Mode)", "SUCCESS");
+      triggerToast("Ride posted successfully!", "SUCCESS");
       setTimeout(() => router.push("/dashboard"), 3000);
     } catch (err: any) {
       const errorMsg = err.message || "Failed to post ride. Please check all fields.";
@@ -211,6 +211,11 @@ export default function PostRidePage() {
                     className="sathi-input"
                     value={departureTime}
                     onChange={(e) => setDepartureTime(e.target.value)}
+                    min={(() => {
+                      const now = new Date();
+                      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                      return now.toISOString().slice(0, 16);
+                    })()}
                     required
                   />
                 </div>

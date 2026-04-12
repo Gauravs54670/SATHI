@@ -26,6 +26,8 @@ public class RideRequestUpdatesDTO {
     private BigDecimal estimatedFare;
     private String rideStatus;
     private Boolean isDriverReachedPickupLocation;
+    private Integer rejectionCount;
+    private Integer numberOfRequests;
 
     public RideRequestUpdatesDTO(
         Long rideId,
@@ -39,7 +41,9 @@ public class RideRequestUpdatesDTO {
         Integer requestedSeats,
         BigDecimal estimatedFare,
         RideStatus rideStatus,
-        Boolean isDriverReachedPickupLocation) {
+        Boolean isDriverReachedPickupLocation,
+        Integer rejectionCount,
+        Integer numberOfRequests) {
         this.rideId = rideId;
         this.rideRequestedId = rideRequestedId;
         this.rideRequestStatus = rideRequestStatus.name();
@@ -52,5 +56,7 @@ public class RideRequestUpdatesDTO {
         this.estimatedFare = estimatedFare;
         this.rideStatus = rideStatus.name();
         this.isDriverReachedPickupLocation = isDriverReachedPickupLocation;
+        this.rejectionCount = rejectionCount;
+        this.numberOfRequests = numberOfRequests;
     }
 }

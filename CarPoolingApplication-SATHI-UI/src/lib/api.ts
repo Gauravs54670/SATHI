@@ -327,7 +327,7 @@ export interface AvailablePostedRideDTO {
   driverSourceAddress: string;
   driverDestinationAddress: string;
   rideDepartureTime: string;
-  totalOfferedSeats: number;
+  totalAvailableSeats: number;
   basePrice: number;
   pricePerKm: number;
   totalEstimatedCost: number;
@@ -409,6 +409,8 @@ export interface RideRequestUpdatesDTO {
   estimatedFare: number;
   rideStatus: string;
   isDriverReachedPickupLocation: boolean;
+  rejectionCount?: number;
+  numberOfRequests?: number;
 }
 
 export interface PassengerRideBookingRequest {
@@ -418,8 +420,8 @@ export interface PassengerRideBookingRequest {
   dropLocation: string;
   rideRequestStatus: string;
   requestedSeats: number;
-  distanceFromDriver: number;
   requestedAt: string;
+  phoneNumber?: string;
 }
 
 export async function fetchRideRequestUpdates() {

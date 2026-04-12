@@ -46,13 +46,13 @@ public class RideEntity {
     @Column(nullable = false)
     private Double destinationLng;
     private String destinationAddress;
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private VehicleClass vehicleClass;
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private VehicleCategory vehicleCategory;
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     private RideStatus rideStatus;
     @Column(nullable = false, precision = 10, scale = 2)

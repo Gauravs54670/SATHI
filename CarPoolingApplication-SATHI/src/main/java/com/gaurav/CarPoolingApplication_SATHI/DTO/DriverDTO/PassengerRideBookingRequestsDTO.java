@@ -19,10 +19,12 @@ public class PassengerRideBookingRequestsDTO {
     private String rideRequestStatus;
     private Integer requestedSeats;
     private LocalDateTime requestedAt;
+    private String phoneNumber;
+
     public PassengerRideBookingRequestsDTO(
             Long rideRequestId, String passengerName, String pickupLocation,
             String dropLocation, RideRequestStatus rideRequestStatus, Integer requestedSeats,
-            LocalDateTime requestedAt) {
+            LocalDateTime requestedAt, String phoneNumber) {
         this.rideRequestId = rideRequestId;
         this.passengerName = passengerName;
         this.pickupLocation = pickupLocation;
@@ -30,7 +32,7 @@ public class PassengerRideBookingRequestsDTO {
         this.rideRequestStatus = rideRequestStatus.name();
         this.requestedSeats = requestedSeats;
         this.requestedAt = requestedAt;
-
+        this.phoneNumber = phoneNumber;
     }
 }
 

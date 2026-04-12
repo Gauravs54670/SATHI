@@ -27,7 +27,9 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 prr.requestedSeats,
                 prr.rideEntity.estimatedFare,
                 prr.rideEntity.rideStatus,
-                prr.isDriverReachedPickupLocation
+                prr.isDriverReachedPickupLocation,
+                prr.rejectionCount,
+                prr.numberOfRequests
             )
             FROM PassengerRideRequestEntity prr
             WHERE prr.passengerEntity.userId = :userId
@@ -51,12 +53,16 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 prr.passengerDestinationLocation,
                 prr.rideRequestStatus,
                 prr.requestedSeats,
-                prr.rideRequestedAt
+                prr.rideRequestedAt,
+                prr.passengerEntity.phoneNumber
             )
             FROM PassengerRideRequestEntity prr
             WHERE prr.rideEntity.driverProfileEntity.user.userId = :userId
             AND prr.rideEntity.rideId = :rideId
-            AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING
+            AND prr.rideRequestStatus IN (
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING,
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED
+            )
             AND prr.rideRequestedAt >= :dayStartedAt AND prr.rideRequestedAt <= :dayEndedAt
             ORDER BY prr.rideRequestedAt DESC
             """)

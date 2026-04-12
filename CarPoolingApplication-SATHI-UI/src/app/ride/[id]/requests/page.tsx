@@ -11,6 +11,7 @@ export default function RideRequestsPage() {
   const [requests, setRequests] = useState<PassengerRideBookingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [successId, setSuccessId] = useState<number | null>(null); // For "Accepted!" transition
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -38,10 +39,20 @@ export default function RideRequestsPage() {
         : await rejectRideRequest(Number(id), requestId);
       
       setToast(msg);
-      setTimeout(() => setToast(null), 3000);
       
-      // Refresh the list to reflect status changes and remaining seats
-      await loadRequests();
+      if (action === 'accept') {
+        setSuccessId(requestId);
+        // Delay the refresh slightly so user sees the success state
+        setTimeout(async () => {
+          await loadRequests();
+          setSuccessId(null);
+          setToast(null);
+        }, 1500);
+      } else {
+        await loadRequests();
+        setTimeout(() => setToast(null), 3000);
+      }
+      
     } catch (err: any) {
       setToast(err.message || `Failed to ${action} request`);
       setTimeout(() => setToast(null), 3000);
@@ -49,6 +60,9 @@ export default function RideRequestsPage() {
       setProcessingId(null);
     }
   };
+
+  const pendingRequests = requests.filter(r => r.rideRequestStatus === "PENDING");
+  const confirmedRequests = requests.filter(r => r.rideRequestStatus === "ACCEPTED");
 
   if (loading && requests.length === 0) {
     return (
@@ -65,7 +79,7 @@ export default function RideRequestsPage() {
       <main className="max-w-4xl mx-auto px-4 py-12">
         <div className="mb-10 flex items-center justify-between">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/dashboard")}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
           >
             <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,6 +96,7 @@ export default function RideRequestsPage() {
 
         {error ? (
           <div className="glass-card p-12 text-center border-red-500/20">
+            {/* Error view code... */}
             <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
               <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -89,115 +104,160 @@ export default function RideRequestsPage() {
             </div>
             <h3 className="text-xl font-bold text-white mb-2">Oops! Something went wrong</h3>
             <p className="text-slate-400 mb-8">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-8 py-3 bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-400 transition-all"
-            >
-              Try Again
-            </button>
+            <button onClick={() => window.location.reload()} className="px-8 py-3 bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-400 transition-all">Try Again</button>
           </div>
         ) : requests.length === 0 ? (
-          <div className="glass-card p-20 text-center border-white/5">
-            <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-8 ring-1 ring-white/10">
-              <svg className="w-12 h-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+          <div className="glass-card p-20 text-center border-white/5 bg-gradient-to-br from-indigo-500/5 to-purple-500/5">
+            <div className="w-24 h-24 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-8 ring-1 ring-indigo-500/20 animate-pulse">
+                <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
             </div>
-            <h3 className="text-2xl font-black text-white mb-3 italic">No requests yet!</h3>
-            <p className="text-slate-500 max-w-sm mx-auto font-medium">Sit back and relax. We'll notify you as soon as someone wants to join your journey.</p>
+            <h2 className="text-3xl font-black text-white mb-3">Hi Driver! 👋</h2>
+            <p className="text-slate-400 max-w-sm mx-auto font-medium text-lg italic leading-relaxed">
+              "No ride requests yet for this journey. Sit tight, your SATHI is on the way!"
+            </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4">
-              <div className="h-px flex-1 bg-white/5" />
-              <span>{requests.length} Pending Passengers</span>
-              <div className="h-px flex-1 bg-white/5" />
-            </div>
+          <div className="space-y-12">
+            {/* PENDING REQUESTS */}
+            {pendingRequests.length > 0 && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-4 text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4">
+                  <div className="h-px w-8 bg-indigo-500/30" />
+                  <span>{pendingRequests.length} Pending Passengers</span>
+                  <div className="h-px flex-1 bg-white/5" />
+                </div>
 
-            {requests.map((request) => (
-              <div key={request.rideRequestId} className="glass-card p-8 border-indigo-500/10 hover:border-indigo-500/30 transition-all group overflow-hidden relative">
-                <div className="flex flex-col md:flex-row gap-8 items-start">
-                  {/* Passenger Avatar/Info */}
-                  <div className="flex flex-col items-center gap-4 shrink-0">
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-2xl">
-                      <span className="text-3xl font-black text-white">{request.passengerName.charAt(0)}</span>
-                    </div>
-                    <div className="text-center">
-                      <h3 className="text-xl font-black text-white tracking-tight">{request.passengerName}</h3>
-                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Verified Rider</p>
-                    </div>
-                  </div>
-
-                  {/* Request Details */}
-                  <div className="flex-1 space-y-6 pt-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div className="relative pl-6">
-                          <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-indigo-500" />
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Pick-up Location</p>
-                          <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{request.pickupLocation}</p>
+                {pendingRequests.map((request) => (
+                  <div key={request.rideRequestId} className="glass-card p-8 border-indigo-500/10 hover:border-indigo-500/30 transition-all group overflow-hidden relative">
+                    {/* Success Overlay */}
+                    {successId === request.rideRequestId && (
+                      <div className="absolute inset-0 bg-emerald-500/95 z-50 flex flex-col items-center justify-center animate-fade-in">
+                        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4 animate-bounce">
+                          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
+                          </svg>
                         </div>
-                        <div className="relative pl-6">
-                          <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-purple-500" />
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Drop Location</p>
-                          <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{request.dropLocation}</p>
+                        <p className="text-white font-black text-xl tracking-widest uppercase">Passenger Accepted!</p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                      <div className="flex flex-col items-center gap-4 shrink-0">
+                        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center shadow-2xl">
+                          <span className="text-3xl font-black text-white">{request.passengerName.charAt(0)}</span>
+                        </div>
+                        <div className="text-center">
+                          <h3 className="text-xl font-black text-white tracking-tight">{request.passengerName}</h3>
+                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Verified Rider</p>
                         </div>
                       </div>
 
-                      <div className="space-y-4 sm:pl-6 sm:border-l border-white/5">
-                        <div className="flex justify-between items-center">
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Requested Seats</p>
-                          <span className="bg-indigo-500/20 text-indigo-400 font-black px-2 py-0.5 rounded text-xs">{request.requestedSeats} Seat(s)</span>
+                      <div className="flex-1 space-y-6 pt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div className="relative pl-6">
+                              <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-indigo-500" />
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Pick-up</p>
+                              <p className="text-white text-sm font-bold line-clamp-2">{request.pickupLocation}</p>
+                            </div>
+                            <div className="relative pl-6">
+                              <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-purple-500" />
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Drop-off</p>
+                              <p className="text-white text-sm font-bold line-clamp-2">{request.dropLocation}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4 sm:pl-6 sm:border-l border-white/5">
+                            <div className="flex justify-between items-center">
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Seats</p>
+                              <span className="bg-indigo-500/20 text-indigo-400 font-black px-2 py-0.5 rounded text-xs">{request.requestedSeats}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Time</p>
+                              <span className="text-white font-bold text-xs">{new Date(request.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Requested At</p>
-                          <span className="text-white font-bold text-xs">{new Date(request.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Status</p>
-                          <span className="text-emerald-400 font-bold text-xs uppercase tracking-tighter">{request.rideRequestStatus}</span>
+
+                        <div className="flex gap-4 pt-4">
+                          <button
+                            onClick={() => handleAction(request.rideRequestId, 'reject')}
+                            disabled={processingId !== null}
+                            className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-red-500/10 hover:border-red-500/30 transition-all hover:text-red-400 disabled:opacity-50"
+                          >
+                            {processingId === request.rideRequestId ? <div className="w-4 h-4 border-2 border-slate-500 border-t-white rounded-full animate-spin mx-auto" /> : "Reject"}
+                          </button>
+                          <button
+                            onClick={() => handleAction(request.rideRequestId, 'accept')}
+                            disabled={processingId !== null}
+                            className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] disabled:opacity-50"
+                          >
+                            {processingId === request.rideRequestId ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : "Accept Passenger"}
+                          </button>
                         </div>
                       </div>
                     </div>
-
-                    {/* Action Bar */}
-                    <div className="flex gap-4 pt-4">
-                      <button
-                        onClick={() => handleAction(request.rideRequestId, 'reject')}
-                        disabled={processingId !== null}
-                        className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:bg-red-500/10 hover:border-red-500/30 transition-all hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                      >
-                        {processingId === request.rideRequestId ? (
-                          <div className="w-4 h-4 border-2 border-slate-500 border-t-white rounded-full animate-spin" />
-                        ) : "Reject"}
-                      </button>
-                      <button
-                        onClick={() => handleAction(request.rideRequestId, 'accept')}
-                        disabled={processingId !== null}
-                        className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black text-[10px] uppercase tracking-[0.2em] hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                      >
-                         {processingId === request.rideRequestId ? (
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : "Accept Passenger"}
-                      </button>
-                    </div>
                   </div>
+                ))}
+              </div>
+            )}
+
+            {/* CONFIRMED PASSENGERS */}
+            {confirmedRequests.length > 0 && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div className="flex items-center gap-4 text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-4">
+                  <div className="h-px w-8 bg-emerald-500/30" />
+                  <span>{confirmedRequests.length} Confirmed Passengers</span>
+                  <div className="h-px flex-1 bg-white/5" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {confirmedRequests.map((request) => (
+                    <div key={request.rideRequestId} className="glass-card p-6 border-emerald-500/10 bg-emerald-500/[0.02] flex items-center justify-between group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                          <span className="text-xl font-black text-emerald-400">{request.passengerName.charAt(0)}</span>
+                        </div>
+                        <div>
+                          <h4 className="text-white font-bold">{request.passengerName}</h4>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{request.requestedSeats} Seat(s) Booked</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => window.open(`sms:${request.phoneNumber}`)}
+                          className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400 transition-all" title="Message Passenger">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={() => window.open(`tel:${request.phoneNumber}`)}
+                          className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/20" title="Call Passenger">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
         )}
       </main>
 
-      {/* Premium Toast Notification */}
+      {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-          <div className="bg-indigo-500 text-white px-8 py-4 rounded-2xl shadow-2xl shadow-indigo-500/40 border border-indigo-400 font-black text-sm tracking-tight flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
+          <div className="bg-indigo-600 text-white px-8 py-4 rounded-2xl shadow-2xl border border-white/10 font-black text-sm tracking-tight flex items-center gap-3">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             {toast}
           </div>
         </div>

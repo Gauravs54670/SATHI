@@ -41,7 +41,7 @@ public class RideRequestDTO {
     private String destinationPlaceName;
 
     @NotNull(message = "Departure time is required")
-    @Future(message = "Departure time must be in the future")
+    @jakarta.validation.constraints.FutureOrPresent(message = "Departure time must be in the future or present")
     private LocalDateTime departureTime;
 
     @NotNull(message = "Available seats is required")

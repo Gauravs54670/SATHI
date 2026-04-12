@@ -53,10 +53,16 @@ public class PassengerRideRequestEntity {
     @Column(nullable = false)
     private String passengerDestinationLocation;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private RideRequestStatus rideRequestStatus;
     @Builder.Default
     private Boolean isDriverReachedPickupLocation = false;
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer rejectionCount = 0;
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer numberOfRequests = 1;
     @CreationTimestamp
     private LocalDateTime rideRequestedAt;
     private LocalDateTime rideAcceptedAt;

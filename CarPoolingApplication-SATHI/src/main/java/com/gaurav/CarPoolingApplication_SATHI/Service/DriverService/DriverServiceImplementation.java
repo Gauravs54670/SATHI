@@ -428,6 +428,8 @@ public class DriverServiceImplementation implements DriverService {
         try{
             passengerRideRequestEntity.setRideRequestStatus(RideRequestStatus.REJECTED);
             passengerRideRequestEntity.setRideRejectedAt(LocalDateTime.now());
+            int currentCount = passengerRideRequestEntity.getRejectionCount() == null ? 0 : passengerRideRequestEntity.getRejectionCount();
+            passengerRideRequestEntity.setRejectionCount(currentCount + 1);
             this.passengerRideRequestRepository.save(passengerRideRequestEntity);
             this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId);
             return "Ride request rejected successfully.";

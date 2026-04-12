@@ -48,15 +48,16 @@ public class DriverProfileEntity {
     @Column(nullable = false)
     private Integer vehicleSeatCapacity;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private VehicleCategory vehicleCategory;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private VehicleClass vehicleClass;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private DriverAvailabilityStatus driverAvailabilityStatus;
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
     private DriverVerificationStatus driverVerificationStatus;
     private Integer totalCompletedRides;
     private Integer totalCancelledRides;

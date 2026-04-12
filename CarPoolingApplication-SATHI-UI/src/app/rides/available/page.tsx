@@ -514,8 +514,8 @@ export default function AvailableRidesPage() {
                     <p className="text-[10px] font-bold text-slate-600 uppercase">Time</p>
                   </div>
                   <div className="text-center border-x border-white/5">
-                    <p className="text-white font-bold text-sm">{ride.totalOfferedSeats}</p>
-                    <p className="text-[10px] font-bold text-slate-600 uppercase">Seats</p>
+                    <p className="text-white font-bold text-sm">{ride.totalAvailableSeats}</p>
+                    <p className="text-[10px] font-bold text-emerald-500 uppercase">Available Seats</p>
                   </div>
                   <div className="text-center border-r border-white/5">
                     <p className="text-white font-bold text-sm">{ride.totalDistance?.toFixed(1) || "0.0"} <span className="text-[10px]">km</span></p>
@@ -569,7 +569,7 @@ export default function AvailableRidesPage() {
           destAddress={searchDest || selectedRide.driverDestinationAddress}
           destLat={destCoords?.lat || 0}
           destLng={destCoords?.lng || 0}
-          maxSeats={selectedRide.totalOfferedSeats}
+          maxSeats={selectedRide.totalAvailableSeats}
           totalDistance={selectedRide.totalDistance}
           basePrice={selectedRide.basePrice}
           pricePerKm={selectedRide.pricePerKm}
