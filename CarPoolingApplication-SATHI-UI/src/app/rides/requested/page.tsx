@@ -3,13 +3,19 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { fetchRideRequestUpdates, RideRequestUpdatesDTO } from "@/lib/api";
+import { fetchRideRequestUpdates, RideRequestUpdatesDTO, cancelRideRequest } from "@/lib/api";
+import Toast from "@/components/Toast";
 
 export default function MyRideRequestsPage() {
   const router = useRouter();
   const [requests, setRequests] = useState<RideRequestUpdatesDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "SUCCESS",
+    isVisible: false
+  });
 
   useEffect(() => {
     loadRequests();
@@ -23,6 +29,21 @@ export default function MyRideRequestsPage() {
       setRequests(data);
     } catch (err: any) {
       setError(err.message || "Failed to load ride requests");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = async (rideRequestId: number) => {
+    if (!confirm("Are you sure you want to cancel this ride request?")) return;
+    
+    try {
+      setLoading(true);
+      await cancelRideRequest(rideRequestId);
+      setToast({ message: "Ride request cancelled successfully", type: "SUCCESS", isVisible: true });
+      await loadRequests(); // Refresh the list
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to cancel ride request", type: "ERROR", isVisible: true });
     } finally {
       setLoading(false);
     }
@@ -193,15 +214,25 @@ export default function MyRideRequestsPage() {
                         )}
                     </div>
                     
-                    <div className="flex flex-col items-center gap-1 opacity-40">
-                         <p className="text-[9px] font-black uppercase tracking-widest">Req ID</p>
-                         <p className="text-xs font-mono text-white">#{req.rideRequestedId}</p>
-                    </div>
                     {req.numberOfRequests && req.numberOfRequests > 1 && (
                          <div className="mt-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                              Attempt #{req.numberOfRequests}
                          </div>
+                    )}
+
+                    {/* Cancel Button */}
+                    {(req.rideRequestStatus === "PENDING" || req.rideRequestStatus === "ACCEPTED") && (
+                        <button
+                            onClick={() => handleCancel(req.rideRequestedId)}
+                            disabled={loading}
+                            className="w-full mt-4 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-rose-500/10 text-rose-500 font-black text-[10px] uppercase tracking-widest border border-rose-500/20 hover:bg-rose-500/20 transition-colors disabled:opacity-50 group"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Cancel Booking
+                        </button>
                     )}
                 </div>
               </div>
@@ -227,6 +258,13 @@ export default function MyRideRequestsPage() {
           </div>
         )}
       </main>
+
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   );
 }

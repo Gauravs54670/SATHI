@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { RideSharingRequestToPostedRide, requestRide, fetchRideRequestUpdates, RideRequestUpdatesDTO } from "@/lib/api";
+import { RideSharingRequestToPostedRide, requestRide, fetchRideRequestUpdates, RideRequestUpdatesDTO, cancelRideRequest } from "@/lib/api";
+import Toast from "./Toast";
 
 interface RideRequestModalProps {
   rideId: number;
@@ -43,6 +44,11 @@ export default function RideRequestModal({
   const [existingRequest, setExistingRequest] = useState<RideRequestUpdatesDTO | null>(null);
   const [allUpdates, setAllUpdates] = useState<RideRequestUpdatesDTO[]>([]);
   const [isChecking, setIsChecking] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "SUCCESS",
+    isVisible: false
+  });
 
   useEffect(() => {
     const fetchExisting = async () => {
@@ -77,6 +83,25 @@ export default function RideRequestModal({
 
   const isSubmitDisabled = loading || isChecking || isPendingOrAccepted || isRetryLimitReached || isAlreadyBookedElsewhere;
 
+  const handleCancel = async () => {
+    if (!existingRequest) return;
+    if (!confirm("Are you sure you want to cancel this ride request?")) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await cancelRideRequest(existingRequest.rideRequestedId);
+      setToast({ message: "Ride request cancelled successfully", type: "SUCCESS", isVisible: true });
+      setTimeout(() => {
+        onSuccess(); // Close and refresh parent
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || "Failed to cancel ride request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -95,7 +120,10 @@ export default function RideRequestModal({
 
     try {
       await requestRide(payload);
-      onSuccess();
+      setToast({ message: "Ride requested successfully!", type: "SUCCESS", isVisible: true });
+      setTimeout(() => {
+        onSuccess();
+      }, 1000);
     } catch (err: any) {
       console.error("Ride request error:", err);
       const errMsg = err.message || "";
@@ -278,27 +306,55 @@ export default function RideRequestModal({
               onClick={onClose}
               className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
             >
-              Cancel
+              Close
             </button>
-            <button
-              type="submit"
-              disabled={isSubmitDisabled}
-              className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                  Confirm Request
-                </>
-              )}
-            </button>
+            
+            {(existingRequest?.rideRequestStatus === "PENDING" || existingRequest?.rideRequestStatus === "ACCEPTED") ? (
+               <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={loading}
+                  className="flex-[2] py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 font-black hover:bg-rose-500/20 transition-colors flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Cancel Booking
+                    </>
+                  )}
+                </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={isSubmitDisabled}
+                className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    Confirm Request
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </form>
       </div>
+
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   );
 }

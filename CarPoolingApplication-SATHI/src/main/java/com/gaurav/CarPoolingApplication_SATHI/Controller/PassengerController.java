@@ -64,4 +64,15 @@ public class PassengerController {
             "data", rideRequestUpdates
         ), HttpStatus.OK);
     }
+    @PostMapping("/cancel-ride-request")
+    public ResponseEntity<?> cancelRideRequest(
+            Authentication authentication,
+            @RequestParam Long rideRequestId) {
+        String email = authentication.getName();
+        this.passengerService.cancelRideRequest(email, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride request cancelled successfully"
+        ), HttpStatus.OK);
+    }
 }

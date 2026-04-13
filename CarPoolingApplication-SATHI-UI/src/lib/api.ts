@@ -537,3 +537,24 @@ export async function rejectRideRequest(rideId: number, rideRequestId: number) {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to reject ride request");
   return data.message as string;
 }
+export async function cancelRideRequest(rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/cancel-ride-request?rideRequestId=${rideRequestId}`, {
+    method: "POST",
+  });
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to cancel ride request`);
+    throw err;
+  }
+
+  if (!res.ok) {
+    console.error(`Cancel Ride API Error [${res.status}]:`, data);
+    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
+    throw new Error(errorMsg);
+  }
+  return data.message as string;
+}

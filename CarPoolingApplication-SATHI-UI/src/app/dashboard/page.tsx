@@ -5,15 +5,20 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides } from "@/lib/api";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO } from "@/lib/api";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
+import Toast from "@/components/Toast";
 
 export default function DashboardPage() {
   const { user, isLoggedIn, isLoading } = useAuth();
   const router = useRouter();
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "SUCCESS",
+    isVisible: false
+  });
   const [isDriver, setIsDriver] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
@@ -21,6 +26,8 @@ export default function DashboardPage() {
   const [postedRides, setPostedRides] = useState<any[]>([]);
   const [isFetchingRides, setIsFetchingRides] = useState(false);
   const [showRidesList, setShowRidesList] = useState(false);
+  const [passengerRequests, setPassengerRequests] = useState<RideRequestUpdatesDTO[]>([]);
+  const [isFetchingRequests, setIsFetchingRequests] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -46,11 +53,23 @@ export default function DashboardPage() {
                 if (mounted) setHasActiveRide(hasRide);
               }).catch(err => {
                 if (mounted) {
-                  setToastMessage(err.message || "Failed to check active rides");
-                  setTimeout(() => setToastMessage(null), 3000);
+                  setToast({ message: err.message || "Failed to check active rides", type: "ERROR", isVisible: true });
                 }
               });
           }
+          
+          // NEW: Fetch passenger requests regardless of roles
+          setIsFetchingRequests(true);
+          fetchRideRequestUpdates()
+            .then(requests => {
+              if (mounted) {
+                // Filter for active ones to keep dashboard clean
+                const active = requests.filter(r => r.rideRequestStatus === 'PENDING' || r.rideRequestStatus === 'ACCEPTED');
+                setPassengerRequests(active);
+              }
+            })
+            .catch(err => console.error("Passenger requests fetch error", err))
+            .finally(() => { if (mounted) setIsFetchingRequests(false); });
         })
         .catch(err => console.error("Roles fetch error", err));
     }
@@ -62,11 +81,9 @@ export default function DashboardPage() {
     try {
       const msg = await changeDriverAvailabilityStatus(newStatus);
       setAvailabilityStatus(newStatus);
-      setToastMessage(msg);
-      setTimeout(() => setToastMessage(null), 3000);
+      setToast({ message: msg, type: "SUCCESS", isVisible: true });
     } catch (err: any) {
-      setToastMessage(err.message || "Failed to update status");
-      setTimeout(() => setToastMessage(null), 3000);
+      setToast({ message: err.message || "Failed to update status", type: "ERROR", isVisible: true });
     } finally {
       setStatusChanging(false);
     }
@@ -102,13 +119,27 @@ export default function DashboardPage() {
       const rides = await fetchActiveRides();
       setPostedRides(rides);
       setShowRidesList(true);
-      setToastMessage("Active ride(s) fetched successfully");
-      setTimeout(() => setToastMessage(null), 3000);
+      setToast({ message: "Active ride(s) fetched successfully", type: "SUCCESS", isVisible: true });
     } catch (err: any) {
-      setToastMessage(err.message || "Failed to fetch active rides");
-      setTimeout(() => setToastMessage(null), 3000);
+      setToast({ message: err.message || "Failed to fetch active rides", type: "ERROR", isVisible: true });
     } finally {
       setIsFetchingRides(false);
+    }
+  };
+
+  const handleCancelBooking = async (rideRequestId: number) => {
+    if (!confirm("Are you sure you want to cancel this booking?")) return;
+    setActionLoading(true);
+    try {
+      await cancelRideRequest(rideRequestId);
+      setToast({ message: "Booking cancelled successfully", type: "SUCCESS", isVisible: true });
+      // Refresh requests manually
+      const updated = await fetchRideRequestUpdates();
+      setPassengerRequests(updated.filter(r => r.rideRequestStatus === 'PENDING' || r.rideRequestStatus === 'ACCEPTED'));
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to cancel booking", type: "ERROR", isVisible: true });
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -192,14 +223,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-10 animate-fade-in-up-delay relative">
-              {toastMessage && (
-                <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-indigo-500 text-white px-4 py-2 rounded-lg shadow-lg shadow-indigo-500/30 text-sm font-medium animate-fade-in-up z-10 flex items-center gap-2 border border-indigo-400">
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {toastMessage}
-                </div>
-              )}
               {isDriver && availabilityStatus && (
                 <div className="mb-6 glass-card p-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-indigo-500/20">
                   <div className="flex items-center gap-3">
@@ -294,6 +317,74 @@ export default function DashboardPage() {
                   </div>
                 </button>
               </div>
+
+              {/* My Pending/Accepted Bookings - NEW SECTION */}
+              {passengerRequests.length > 0 && (
+                <div className="mt-12 animate-fade-in-up">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
+                      <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
+                      My Active Bookings
+                    </h2>
+                    <button 
+                      onClick={() => router.push('/rides/requested')}
+                      className="text-xs font-black text-purple-400 uppercase tracking-widest hover:text-purple-300 transition-colors"
+                    >
+                      View History
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {passengerRequests.map((req) => (
+                      <div key={req.rideRequestedId} className="glass-card p-6 border-white/5 hover:border-purple-500/30 transition-all group relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-3">
+                           <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest border ${
+                             req.rideRequestStatus === 'ACCEPTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                           }`}>
+                             {req.rideRequestStatus}
+                           </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 mb-4">
+                           <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                           </div>
+                           <div>
+                              <p className="text-xs font-black text-white">{req.driverName}</p>
+                              <p className="text-[10px] text-slate-500 font-medium">Driver</p>
+                           </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                           <div className="flex items-center gap-3">
+                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                              <p className="text-[11px] text-slate-300 font-medium line-clamp-1">{req.passengerSourceLocation}</p>
+                           </div>
+                           <div className="flex items-center gap-3">
+                              <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+                              <p className="text-[11px] text-slate-300 font-medium line-clamp-1">{req.passengerDestinationLocation}</p>
+                           </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                           <div className="flex flex-col">
+                              <span className="text-xs font-black text-white">{new Date(req.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{new Date(req.rideDepartureTime).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
+                           </div>
+                           <button 
+                             onClick={() => handleCancelBooking(req.rideRequestedId)}
+                             className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
+                           >
+                             Cancel
+                           </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
 
 
@@ -609,6 +700,12 @@ export default function DashboardPage() {
           setIsEmailModalOpen(false);
           proceedToOfferRide(); // Auto-cascade
         }} 
+      />
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
       />
     </div>
   );
