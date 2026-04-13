@@ -41,12 +41,14 @@ export default function RideRequestModal({
   const [error, setError] = useState<string | null>(null);
   
   const [existingRequest, setExistingRequest] = useState<RideRequestUpdatesDTO | null>(null);
+  const [allUpdates, setAllUpdates] = useState<RideRequestUpdatesDTO[]>([]);
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const fetchExisting = async () => {
       try {
         const updates = await fetchRideRequestUpdates();
+        setAllUpdates(updates);
         const match = updates.find((u) => u.rideId === rideId);
         if (match) {
           setExistingRequest(match);
@@ -60,10 +62,20 @@ export default function RideRequestModal({
     fetchExisting();
   }, [rideId]);
 
+  // Check for any overlapping ACCEPTED rides
+  const acceptedConflict = allUpdates.find(u => u.rideRequestStatus === "ACCEPTED"); 
+  // Note: For a more precise overlap check, we would compare departure times.
+  // But given the business rule, if they have ANY accepted ride for the day, 
+  // we should be careful, or at least let the backend handle the 1-hour window.
+  
   const rejectionCount = existingRequest?.rejectionCount || 0;
   const isRetryLimitReached = existingRequest?.rideRequestStatus === "REJECTED" && rejectionCount >= 3;
   const isPendingOrAccepted = ["PENDING", "ACCEPTED"].includes(existingRequest?.rideRequestStatus || "");
-  const isSubmitDisabled = loading || isChecking || isPendingOrAccepted || isRetryLimitReached;
+  
+  // If the user is ALREADY accepted on a ride, they shouldn't be requesting others (based on user's rule)
+  const isAlreadyBookedElsewhere = acceptedConflict && acceptedConflict.rideId !== rideId;
+
+  const isSubmitDisabled = loading || isChecking || isPendingOrAccepted || isRetryLimitReached || isAlreadyBookedElsewhere;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,11 +97,13 @@ export default function RideRequestModal({
       await requestRide(payload);
       onSuccess();
     } catch (err: any) {
+      console.error("Ride request error:", err);
       const errMsg = err.message || "";
       if (errMsg.includes("limit reached") || errMsg.includes("Too many requests")) {
         setError("Too many requests. Please try again later.");
       } else {
-        setError(errMsg || "Failed to submit ride request");
+        // Use the backend message directly if available
+        setError(errMsg || "Failed to submit ride request. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -118,41 +132,60 @@ export default function RideRequestModal({
         {/* Scrollable Content */}
         <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-400 animate-shake">
-              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="p-5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-4 text-red-400 animate-shake">
+              <svg className="w-6 h-6 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm font-semibold">{error}</p>
+              <div>
+                <p className="text-sm font-black uppercase tracking-widest mb-1">Request Failed</p>
+                <p className="text-sm font-medium opacity-90">{error}</p>
+              </div>
             </div>
           )}
 
+          {isAlreadyBookedElsewhere && !existingRequest && (
+             <div className="p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-4 text-amber-400">
+               <svg className="w-6 h-6 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+               </svg>
+               <div>
+                  <p className="text-sm font-black uppercase tracking-widest mb-1">Already Booked</p>
+                  <p className="text-xs font-medium opacity-90">You are already booked for another ride. You cannot request more rides until you cancel your existing booking.</p>
+               </div>
+             </div>
+          )}
+
           {existingRequest && (
-            <div className={`p-4 rounded-2xl flex items-start gap-3 border ${
-              existingRequest.rideRequestStatus === "PENDING" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
-              existingRequest.rideRequestStatus === "ACCEPTED" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
-              isRetryLimitReached ? "bg-red-500/10 border-red-500/20 text-red-400" :
-              "bg-rose-500/10 border-rose-500/20 text-rose-400"
+            <div className={`p-5 rounded-2xl flex items-start gap-4 border ${
+              existingRequest.rideRequestStatus === "PENDING" ? "bg-amber-500/10 border-amber-500/30 text-amber-400" :
+              existingRequest.rideRequestStatus === "ACCEPTED" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+              isRetryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" :
+              "bg-rose-500/10 border-rose-500/30 text-rose-400"
             }`}>
-              <div className="mt-0.5">
+              <div className="shrink-0 mt-0.5">
                 {existingRequest.rideRequestStatus === "PENDING" || existingRequest.rideRequestStatus === "ACCEPTED" ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold flex items-center gap-2">
-                  Status: {existingRequest.rideRequestStatus}
-                  {existingRequest.rideRequestStatus === "REJECTED" && !isRetryLimitReached && (
-                     <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20">Attempt {rejectionCount}/3</span>
-                  )}
-                </h3>
-                <p className="text-xs font-medium mt-1 opacity-90">
-                  {existingRequest.rideRequestStatus === "PENDING" || existingRequest.rideRequestStatus === "ACCEPTED" 
-                    ? "You have already requested this ride. Please wait until the driver responds."
+                <div className="flex items-center gap-3 mb-1">
+                   <h3 className="text-sm font-black uppercase tracking-widest">
+                    {existingRequest.rideRequestStatus}
+                   </h3>
+                   {existingRequest.rideRequestStatus === "REJECTED" && !isRetryLimitReached && (
+                      <span className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded bg-rose-500/20">Attempt {rejectionCount}/3</span>
+                   )}
+                </div>
+                <p className="text-xs font-medium opacity-90 leading-relaxed">
+                  {existingRequest.rideRequestStatus === "PENDING"
+                    ? "Your request is currently pending. Please wait for the driver to accept or reject."
+                    : existingRequest.rideRequestStatus === "ACCEPTED"
+                    ? "Congratulations! Your request for this ride has been accepted."
                     : isRetryLimitReached
-                    ? "Retry limit reached for this ride. The driver has rejected your request multiple times."
-                    : "Your previous request was rejected. You can try requesting again."}
+                    ? "Retry limit reached. The driver has rejected your request 3 times for this specific ride."
+                    : "Your previous request was rejected. You can try requesting again if seats are still available."}
                 </p>
               </div>
             </div>

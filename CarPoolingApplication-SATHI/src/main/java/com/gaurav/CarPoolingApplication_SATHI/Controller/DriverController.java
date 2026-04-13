@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
@@ -103,7 +103,7 @@ public class DriverController {
     public ResponseEntity<?> getRideRequests(Authentication authentication, 
             @RequestParam("rideId") Long rideId) {
         String email = authentication.getName();
-        List<PassengerRideBookingRequestsDTO> rideRequests = this.driverService
+        RideAllBookingRequestsDTO rideRequests = this.driverService
             .getMyPostedRidesRequests(email, rideId);
         return new ResponseEntity<>(Map.of(
             "status", "success",

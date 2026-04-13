@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverAcceptedRideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
@@ -59,13 +60,52 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
             FROM PassengerRideRequestEntity prr
             WHERE prr.rideEntity.driverProfileEntity.user.userId = :userId
             AND prr.rideEntity.rideId = :rideId
-            AND prr.rideRequestStatus IN (
-                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING,
-                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED
-            )
+            AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING
             AND prr.rideRequestedAt >= :dayStartedAt AND prr.rideRequestedAt <= :dayEndedAt
             ORDER BY prr.rideRequestedAt DESC
             """)
     List<PassengerRideBookingRequestsDTO> findPassengerRideBookingRequestsByDriverId(
             Long userId, Long rideId, LocalDateTime dayStartedAt, LocalDateTime dayEndedAt);
+
+    @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverAcceptedRideRequestDTO(
+                prr.rideEntity.rideId,
+                prr.rideRequestId,
+                prr.passengerEntity.userFullName,
+                prr.passengerEntity.phoneNumber,
+                prr.passengerSourceLocation,
+                prr.passengerDestinationLocation,
+                prr.requestedSeats,
+                prr.rideRequestStatus
+            )
+            FROM PassengerRideRequestEntity prr
+            WHERE prr.rideEntity.driverProfileEntity.user.userId = :userId
+            AND prr.rideEntity.rideId = :rideId
+            AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED
+            AND prr.rideRequestedAt >= :dayStartedAt AND prr.rideRequestedAt <= :dayEndedAt
+            ORDER BY prr.rideRequestedAt DESC
+            """)
+    List<DriverAcceptedRideRequestDTO> findDriverAcceptedRideRequestsByDriverId(
+            Long userId, Long rideId, LocalDateTime dayStartedAt, LocalDateTime dayEndedAt);
+    // Global Check: Does this passenger have ANY accepted ride within this time window?
+    @Query("""
+        SELECT COUNT(prr) > 0 
+        FROM PassengerRideRequestEntity prr 
+        WHERE prr.passengerEntity.userId = :userId 
+        AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED
+        AND prr.rideEntity.rideDepartureTime BETWEEN :startTime AND :endTime
+    """)
+    boolean hasOverlappingAcceptedRide(Long userId, LocalDateTime startTime, LocalDateTime endTime);
+
+    // Cleanup: Find all OTHER pending requests from this passenger within this window
+    @Query("""
+        SELECT prr 
+        FROM PassengerRideRequestEntity prr 
+        WHERE prr.passengerEntity.userId = :userId 
+        AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING
+        AND prr.rideRequestId != :currentRequestId
+        AND prr.rideEntity.rideDepartureTime BETWEEN :startTime AND :endTime
+    """)
+    List<PassengerRideRequestEntity> findOverlappingPendingRequests(
+            Long userId, Long currentRequestId, LocalDateTime startTime, LocalDateTime endTime);
 }

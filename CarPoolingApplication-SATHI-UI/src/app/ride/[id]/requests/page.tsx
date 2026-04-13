@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchRideRequests, PassengerRideBookingRequest, acceptRideRequest, rejectRideRequest } from "@/lib/api";
+import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 
 export default function RideRequestsPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [requests, setRequests] = useState<PassengerRideBookingRequest[]>([]);
+  const [requests, setRequests] = useState<RideAllBookingRequestsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [successId, setSuccessId] = useState<number | null>(null); // For "Accepted!" transition
@@ -61,10 +61,12 @@ export default function RideRequestsPage() {
     }
   };
 
-  const pendingRequests = requests.filter(r => r.rideRequestStatus === "PENDING");
-  const confirmedRequests = requests.filter(r => r.rideRequestStatus === "ACCEPTED");
+  const pendingRequests = requests?.pendingRequests || [];
+  const confirmedRequests = requests?.acceptedPassengers || [];
 
-  if (loading && requests.length === 0) {
+  const totalRequests = pendingRequests.length + confirmedRequests.length;
+
+  if (loading && !requests) {
     return (
       <div className="min-h-screen bg-bg-main flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -106,7 +108,7 @@ export default function RideRequestsPage() {
             <p className="text-slate-400 mb-8">{error}</p>
             <button onClick={() => window.location.reload()} className="px-8 py-3 bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-400 transition-all">Try Again</button>
           </div>
-        ) : requests.length === 0 ? (
+        ) : totalRequests === 0 ? (
           <div className="glass-card p-20 text-center border-white/5 bg-gradient-to-br from-indigo-500/5 to-purple-500/5">
             <div className="w-24 h-24 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-8 ring-1 ring-indigo-500/20 animate-pulse">
                 <svg className="w-12 h-12 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -228,14 +230,14 @@ export default function RideRequestsPage() {
 
                       <div className="flex gap-2">
                         <button 
-                          onClick={() => window.open(`sms:${request.phoneNumber}`)}
+                          onClick={() => window.open(`sms:${request.passengerContact}`)}
                           className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400 transition-all" title="Message Passenger">
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                           </svg>
                         </button>
                         <button 
-                          onClick={() => window.open(`tel:${request.phoneNumber}`)}
+                          onClick={() => window.open(`tel:${request.passengerContact}`)}
                           className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/20" title="Call Passenger">
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />

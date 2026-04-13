@@ -357,8 +357,20 @@ export async function fetchAvailableRides(
   const res = await fetchWithAuth(`${API_BASE}/passenger/available-rides${query}`, {
     method: "GET",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch available rides");
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to fetch available rides`);
+    throw err;
+  }
+
+  if (!res.ok) {
+    console.error(`Available Rides API Error [${res.status}]:`, data);
+    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
+    throw new Error(errorMsg);
+  }
   return data.data; // returns AvailablePostedRideDTO[]
 }
 
@@ -391,8 +403,20 @@ export async function requestRide(payload: RideSharingRequestToPostedRide) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to request ride");
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to request ride`);
+    throw err;
+  }
+
+  if (!res.ok) {
+    console.error(`Request Ride API Error [${res.status}]:`, data);
+    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
+    throw new Error(errorMsg);
+  }
   return data.data as RideSharingResponseToPostedRide;
 }
 
@@ -424,13 +448,41 @@ export interface PassengerRideBookingRequest {
   phoneNumber?: string;
 }
 
+export interface DriverAcceptedRideRequestDTO {
+  rideId: number;
+  rideRequestId: number;
+  passengerName: string;
+  passengerContact: string; // mapped from phoneNumber
+  boardingAddress: string;
+  destinationAddress: string;
+  requestedSeats: number;
+  rideRequestStatus: string;
+}
+
+export interface RideAllBookingRequestsDTO {
+  pendingRequests: PassengerRideBookingRequest[];
+  acceptedPassengers: DriverAcceptedRideRequestDTO[];
+}
+
 export async function fetchRideRequestUpdates() {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/passenger/ride-request-updates`, {
     method: "GET",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to fetch ride updates`);
+    throw err;
+  }
+
+  if (!res.ok) {
+    console.error(`Ride Updates API Error [${res.status}]:`, data);
+    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
+    throw new Error(errorMsg);
+  }
   return data.data as RideRequestUpdatesDTO[];
 }
 
@@ -451,7 +503,7 @@ export async function fetchRideRequests(rideId: number) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
-  return data.data as PassengerRideBookingRequest[];
+  return data.data as RideAllBookingRequestsDTO;
 }
 
 export async function acceptRideRequest(rideId: number, rideRequestId: number) {
@@ -459,8 +511,20 @@ export async function acceptRideRequest(rideId: number, rideRequestId: number) {
   const res = await fetchWithAuth(`${API_BASE}/driver/accept-ride-request?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
     method: "PUT",
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to accept ride request");
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to accept request`);
+    throw err;
+  }
+
+  if (!res.ok) {
+    console.error(`Accept Ride API Error [${res.status}]:`, data);
+    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
+    throw new Error(errorMsg);
+  }
   return data.message as string;
 }
 
