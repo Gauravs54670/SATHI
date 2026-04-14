@@ -222,6 +222,22 @@ export default function MyRideRequestsPage() {
                             )}
                         </div>
                    </div>
+                   {acceptedDrivers[req.rideRequestedId] && (
+                     <div className="mt-3 p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-2">
+                       <div className="flex items-center gap-2">
+                         <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                         </svg>
+                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{acceptedDrivers[req.rideRequestedId].vehicleModel}</span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <svg className="w-4 h-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                         </svg>
+                         <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">{acceptedDrivers[req.rideRequestedId].vehicleNumber}</span>
+                       </div>
+                     </div>
+                   )}
                 </div>
 
                 {/* Middle Section: Route */}
@@ -258,7 +274,7 @@ export default function MyRideRequestsPage() {
                 </div>
 
                 {/* Right Section: Request Status */}
-                <div className="p-8 md:w-1/4 flex flex-col justify-center items-center gap-4 bg-white/[0.01] border-t md:border-t-0 md:border-l border-white/5">
+                <div className="p-8 md:w-1/3 flex flex-col justify-center items-center gap-4 bg-white/[0.01] border-t md:border-t-0 md:border-l border-white/5">
                     <div className={`w-full flex flex-col items-center py-6 px-4 rounded-3xl border bg-gradient-to-b shadow-xl ${statusColors[req.rideRequestStatus.toUpperCase()] || "bg-white/5 text-slate-500 border-white/10"}`}>
                         <span className="text-[9px] font-black uppercase tracking-[0.25em] mb-3 opacity-70">Request Status</span>
                         <span className="text-lg font-black tracking-tightest">{req.rideRequestStatus}</span>
@@ -271,26 +287,26 @@ export default function MyRideRequestsPage() {
                         )}
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-white/5">
+                    <div className="flex flex-col gap-3 pt-6 border-t border-white/5 w-full">
                         {req.rideRequestStatus === 'ACCEPTED' && acceptedDrivers[req.rideRequestedId] ? (
                             <>
                                 <button 
                                     onClick={() => window.open(`sms:${acceptedDrivers[req.rideRequestedId].driverPhoneNumber}`)}
-                                    className="flex-1 px-6 py-4 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-2"
+                                    className="w-full px-4 py-3 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-2"
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                     </svg>
-                                    Message Driver
+                                    <span>Message Driver</span>
                                 </button>
                                 <button 
                                     onClick={() => window.open(`tel:${acceptedDrivers[req.rideRequestedId].driverPhoneNumber}`)}
-                                    className="flex-1 px-6 py-4 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
+                                    className="w-full px-4 py-3 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
                                 >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                     </svg>
-                                    Call Driver ({acceptedDrivers[req.rideRequestedId].driverPhoneNumber})
+                                    <span>Call Driver</span>
                                 </button>
                             </>
                         ) : req.rideRequestStatus === 'PENDING' ? (

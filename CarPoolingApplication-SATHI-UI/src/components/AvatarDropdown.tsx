@@ -40,8 +40,8 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
   return (
     <div
       ref={dropdownRef}
-      className="absolute right-0 top-full mt-2 w-48 glass-card py-1 z-50
-        animate-fade-in-up shadow-xl"
+      className="absolute right-0 top-full mt-2 w-48 bg-[#0f0f1a] border border-white/10 rounded-xl py-1 z-50
+        animate-fade-in-up shadow-2xl"
     >
       <button
         onClick={() => {

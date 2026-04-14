@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverAcceptedRideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
 
@@ -38,11 +39,11 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED,
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.REJECTED
             )
-            AND (prr.rideRequestedAt >= :dayStartedAt AND prr.rideRequestedAt <= :dayEndedAt)
+            AND prr.rideEntity.rideDepartureTime BETWEEN :windowStart AND :windowEnd
             ORDER BY prr.rideRequestedAt DESC
             """)
     List<RideRequestUpdatesDTO> findRideRequestUpdatesByPassengerId(
-            Long userId, LocalDateTime dayStartedAt, LocalDateTime dayEndedAt);
+            Long userId, LocalDateTime windowStart, LocalDateTime windowEnd);
 
     // get passenger booking requests for drivers
     @Query("""
@@ -132,5 +133,27 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
     List<RideAcceptedPassengerDTO> findRideAcceptedPassengersByDriverId(
             Long userId, Long rideId, LocalDateTime startWindow, LocalDateTime endWindow);
 
-    
-}
+    // Passenger view: Get the accepted driver's details for a specific ride request
+    @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO(
+                prr.rideRequestId,
+                prr.rideEntity.rideId,
+                prr.rideEntity.driverProfileEntity.user.userFullName,
+                prr.rideEntity.driverProfileEntity.user.phoneNumber,
+                prr.rideEntity.driverProfileEntity.user.profilePictureUrl,
+                prr.rideEntity.rideStatus,
+                prr.rideEntity.driverProfileEntity.vehicleModel,
+                prr.rideEntity.driverProfileEntity.vehicleNumber,
+                prr.rideEntity.sourceAddress,
+                prr.rideEntity.destinationAddress,
+                prr.rideEntity.rideDepartureTime,
+                prr.rideEntity.estimatedFare
+            )
+            FROM PassengerRideRequestEntity prr
+            WHERE prr.passengerEntity.userId = :userId
+            AND prr.rideRequestId = :rideRequestId
+            AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED
+            """)
+    List<RideAcceptedDriverDTO> findRideAcceptedDriversByPassengerId(Long userId, Long rideRequestId);
+
+}

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingResponseToPostedRide;
@@ -55,6 +56,8 @@ public class PassengerServiceImplementation implements PassengerService {
     private static final long RIDE_REQUEST_UPDATES_CACHE_TTL = 1;
     // available rides ttl
     private static final long CACHE_TTL_MINUTES = 10;
+    // ride accepted drivers cache key
+    private static final String RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX = "ride:accepted:drivers:";
 
     private final RedisTemplate<String,Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
@@ -338,10 +341,10 @@ public class PassengerServiceImplementation implements PassengerService {
         UserEntity userEntity = userEntityRepository.findByEmail(email)
             .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(userEntity);
-        LocalDateTime dayStartedAt = LocalDateTime.now().toLocalDate().atStartOfDay();
-        LocalDateTime dayEndedAt = LocalDateTime.now().toLocalDate().atTime(23, 59, 59);
+        LocalDateTime windowStart = LocalDateTime.now().minusWeeks(1);
+        LocalDateTime windowEnd = LocalDateTime.now().plusWeeks(1);
         List<RideRequestUpdatesDTO> rideRequestUpdates = this.passengerRideRequestRepository.findRideRequestUpdatesByPassengerId(
-            userEntity.getUserId(), dayStartedAt, dayEndedAt);
+            userEntity.getUserId(), windowStart, windowEnd);
         this.redisTemplate.opsForValue().set(cacheKey, rideRequestUpdates, RIDE_REQUEST_UPDATES_CACHE_TTL, TimeUnit.MINUTES);
         return rideRequestUpdates;
     }
@@ -418,6 +421,33 @@ public class PassengerServiceImplementation implements PassengerService {
             throw new AccessDeniedException("Account is inactive.");
         if(userEntity.getAccountStatus() == UserAccountStatus.DELETED)
             throw new AccessDeniedException("Account is deleted.");
+    }
+
+    // get accepted driver details for a passenger's ride request
+    @SuppressWarnings("unchecked")
+    @Override
+    public List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId) {
+        UserEntity userEntity = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validatePassengerAccount(userEntity);
+        String cacheKey = RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX + userEntity.getUserId() + ":" + rideRequestId;
+        try {
+            List<RideAcceptedDriverDTO> cached = (List<RideAcceptedDriverDTO>) this.redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null)
+                return cached;
+        } catch (Exception e) {
+            log.error("Redis error fetching accepted drivers cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
+        }
+        List<RideAcceptedDriverDTO> drivers = this.passengerRideRequestRepository
+            .findRideAcceptedDriversByPassengerId(userEntity.getUserId(), rideRequestId);
+        if (!drivers.isEmpty()) {
+            try {
+                this.redisTemplate.opsForValue().set(cacheKey, drivers, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                log.error("Redis error storing accepted drivers cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
+            }
+        }
+        return drivers;
     }
     
 }

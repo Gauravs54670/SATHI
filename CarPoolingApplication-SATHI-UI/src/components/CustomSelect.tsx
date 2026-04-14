@@ -67,7 +67,7 @@ export default function CustomSelect({
       </button>
 
       {isOpen && !disabled && (
-        <div className="absolute left-0 right-0 top-full mt-2 glass-card py-1 z-50 animate-fade-in-up shadow-xl overflow-hidden max-h-60 overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-2 bg-[#0f0f1a] border border-white/10 rounded-xl py-1 z-50 animate-fade-in-up shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
           {options.map((opt) => (
             <button
               type="button"

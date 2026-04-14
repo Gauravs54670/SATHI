@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingResponseToPostedRide;
@@ -73,6 +74,17 @@ public class PassengerController {
         return new ResponseEntity<>(Map.of(
             "status", "success",
             "message", "Ride request cancelled successfully"
+        ), HttpStatus.OK);
+    }
+    @GetMapping("/ride-accepted-drivers")
+    public ResponseEntity<?> getRideAcceptedDrivers(Authentication authentication,
+            @RequestParam("requestId") Long rideRequestId) {
+        String email = authentication.getName();
+        List<RideAcceptedDriverDTO> drivers = this.passengerService.getRideAcceptedDrivers(email, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Accepted driver details fetched successfully",
+            "data", drivers
         ), HttpStatus.OK);
     }
 

@@ -500,6 +500,12 @@ export interface RideAcceptedDriverDTO {
   driverPhoneNumber: string;
   driverProfileUrl?: string;
   rideStatus: string;
+  vehicleModel: string;
+  vehicleNumber: string;
+  sourceAddress: string;
+  destinationAddress: string;
+  rideDepartureTime: string;
+  estimatedFare: number;
 }
 
 export async function fetchRideRequestUpdates() {
@@ -556,7 +562,7 @@ export async function fetchRideAcceptedPassengers(rideId: number) {
 
 export async function fetchRideAcceptedDrivers(rideRequestId: number) {
   if (!getAuthToken()) throw new Error("Not logged in");
-  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-accepted-drivers?rideRequestId=${rideRequestId}`, {
+  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-accepted-drivers?requestId=${rideRequestId}`, {
     method: "GET",
   });
   const data = await res.json();
