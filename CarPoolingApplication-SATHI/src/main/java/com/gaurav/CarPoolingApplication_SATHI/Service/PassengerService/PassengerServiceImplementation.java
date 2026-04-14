@@ -1,6 +1,4 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService;
-
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -44,12 +42,7 @@ public class PassengerServiceImplementation implements PassengerService {
     // redis keys for ride request rate limiting
     private static final String RIDE_REQUEST_COUNT_PREFIX = "ride:request:count";
     private static final Long RIDE_REQUEST_TIME_LIMIT = 2L;   
-    // ride requst otp stored into redis
-    private static final String RIDE_REQUEST_OTP_PREFIX = "ride:request:user";
-    private static final long RIDE_REQUEST_OTP_TTL = 15;
     private static final String ACTIVE_RIDES_REQUESTS_CACHE_PREFIX = "active:rides:requests:";
-    // Secure random generator for OTP
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     // ride request updates cache key
     private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
     // ride request updates cache ttl
@@ -306,18 +299,6 @@ public class PassengerServiceImplementation implements PassengerService {
 
         // 7b. Invalidate passenger's own ride updates cache (so modal shows PENDING immediately)
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
-
-        // 7c. Generate & store OTP in Redis for pickup verification
-        String otp = generateOtp();
-        String otpKey = RIDE_REQUEST_OTP_PREFIX + ":" + rideEntity.getRideId() + ":"
-            + passengerRideRequestEntity.getRideRequestId() + ":" + user.getEmail();
-        try {
-            this.redisTemplate.opsForValue().set(otpKey, otp, RIDE_REQUEST_OTP_TTL, TimeUnit.MINUTES);
-            log.info("OTP stored for rideRequestId: {}", passengerRideRequestEntity.getRideRequestId());
-        } catch (Exception e) {
-            log.error("Failed to save OTP to Redis for rideRequestId {}: {}",
-                passengerRideRequestEntity.getRideRequestId(), e.getMessage());
-        }
         // 8. BUILD & RETURN RESPONSE
         return RideSharingResponseToPostedRide.builder()
             .rideId(rideEntity.getRideId())
@@ -405,10 +386,6 @@ public class PassengerServiceImplementation implements PassengerService {
         // Invalidate caches
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId() + ":unified");
-    }
-    // helper methods
-    private String generateOtp() {
-        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
     // validate passenger account
     private void validatePassengerAccount(UserEntity userEntity) {

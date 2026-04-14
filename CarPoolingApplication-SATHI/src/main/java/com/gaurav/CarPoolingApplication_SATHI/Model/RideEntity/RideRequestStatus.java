@@ -6,6 +6,7 @@ public enum RideRequestStatus {
     REJECTED,
     CANCELLED,
     COMPLETED,
+    ONBOARDED,
     NOT_BOARDED,
     DRIVER_REACHED_PICKUP_LOCATION
 }

@@ -598,6 +598,25 @@ public class DriverServiceImplementation implements DriverService {
         }
         return rideAcceptedPassengerDTOs;
     }
+    // start ride method (for tracking ride)
+    @Override
+    public void startRide(String email, Long rideId) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        RideEntity rideEntity = this.rideEntityRepository.findByRideIdAndDriverProfileEntity(rideId, driverProfile)
+            .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
+        if(rideEntity.getRideDepartureTime().isBefore(LocalDateTime.now()))
+            throw new NoEntryFoundException("Ride has already started.");
+        if(rideEntity.getRideStatus() != RideStatus.RIDE_POSTED)
+            throw new NoEntryFoundException("Ride is not posted yet.");
+        rideEntity.setRideStatus(RideStatus.RIDE_IN_PROGRESS);
+        rideEntity.setRideStartedAt(LocalDateTime.now());
+        this.rideEntityRepository.save(rideEntity);
+        log.info("Ride ID: {} started by driver.", rideId);
+        
+    }
     // helper methods
     // calculate price per km of ride
     private BigDecimal calculateBaseFareOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {

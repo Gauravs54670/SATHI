@@ -22,4 +22,5 @@ public interface DriverService {
     String acceptRideRequest(String email,Long rideId, Long rideRequestId);
     String rejectRideRequest(String email,Long rideId, Long rideRequestId);
     List<RideAcceptedPassengerDTO> getRideAcceptedPassengers(String email, Long rideId);
+    void startRide(String email, Long rideId);
 }

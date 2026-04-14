@@ -78,6 +78,7 @@ public class RideEntity {
     private Integer totalPassengersSharedRide;
     @Column(nullable = false)
     private LocalDateTime rideDepartureTime;
+    private LocalDateTime rideStartedAt;
     private LocalDateTime rideCompletiontime;
     private LocalDateTime rideCreatedAt;
     private LocalDateTime rideUpdatedAt;
