@@ -461,9 +461,12 @@ export default function DashboardPage() {
                     {postedRides.map((ride) => (
                       <div key={ride.rideId} className="glass-card p-6 border-indigo-500/20 hover:border-indigo-500/40 transition-all group">
                         <div className="flex justify-between items-start mb-6">
-                            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-1.5">
+                            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-3 py-1.5 flex flex-col justify-center">
                                 <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
                                     {ride.rideStatus.replace('_', ' ')}
+                                </span>
+                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">
+                                    Posted: {new Date(ride.rideCreatedAt).toLocaleDateString()}
                                 </span>
                             </div>
                             <div className="text-right">
@@ -500,7 +503,7 @@ export default function DashboardPage() {
                                 <p className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">Time</p>
                             </div>
                             <div className="text-center border-l border-white/5">
-                                <p className="text-white font-black text-sm">{ride.totalAvailableSeats}</p>
+                                <p className="text-white font-black text-sm">{ride.availableSeats} <span className="text-slate-500 text-xs">/ {ride.totalSeats}</span></p>
                                 <p className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">Seats</p>
                             </div>
                         </div>

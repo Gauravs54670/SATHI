@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { fetchRideRequestUpdates, RideRequestUpdatesDTO, cancelRideRequest } from "@/lib/api";
+import { fetchRideRequestUpdates, RideRequestUpdatesDTO, cancelRideRequest, markAllNotificationsRead, fetchRideAcceptedDrivers, RideAcceptedDriverDTO } from "@/lib/api";
 import Toast from "@/components/Toast";
 
 export default function MyRideRequestsPage() {
@@ -16,6 +16,8 @@ export default function MyRideRequestsPage() {
     type: "SUCCESS",
     isVisible: false
   });
+  const [acceptedDrivers, setAcceptedDrivers] = useState<Record<number, RideAcceptedDriverDTO>>({});
+  const [fetchingDrivers, setFetchingDrivers] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     loadRequests();
@@ -27,10 +29,42 @@ export default function MyRideRequestsPage() {
       setError(null);
       const data = await fetchRideRequestUpdates();
       setRequests(data);
+      
+      // Fetch driver details for all accepted requests
+      data.filter(r => r.rideRequestStatus === 'ACCEPTED').forEach(req => {
+        fetchDriverDetails(req.rideRequestedId);
+      });
     } catch (err: any) {
       setError(err.message || "Failed to load ride requests");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDriverDetails = async (rideRequestId: number) => {
+    if (acceptedDrivers[rideRequestId] || fetchingDrivers[rideRequestId]) return;
+    
+    setFetchingDrivers(prev => ({ ...prev, [rideRequestId]: true }));
+    try {
+      const details = await fetchRideAcceptedDrivers(rideRequestId);
+      if (details && details.length > 0) {
+        setAcceptedDrivers(prev => ({ ...prev, [rideRequestId]: details[0] }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch driver details", err);
+    } finally {
+      setFetchingDrivers(prev => ({ ...prev, [rideRequestId]: false }));
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setToast({ message: "All notifications marked as read", type: "INFO", isVisible: true });
+      // Trigger global refresh for the bell icon
+      window.dispatchEvent(new Event("notificationsUpdated"));
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to mark notifications as read", type: "ERROR", isVisible: true });
     }
   };
 
@@ -95,16 +129,28 @@ export default function MyRideRequestsPage() {
             <p className="text-slate-400 font-medium mt-2">Manage your current bookings and track ride progress</p>
           </div>
           
-          <button 
-            onClick={loadRequests}
-            disabled={loading}
-            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 text-white font-bold border border-white/10 hover:bg-white/10 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] active:scale-95 disabled:opacity-50"
-          >
-            <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-3">
+            <button 
+              onClick={handleMarkAllRead}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-500/10 text-indigo-400 font-bold border border-indigo-500/20 hover:bg-indigo-500/20 transition-all active:scale-95 flex-grow md:flex-grow-0"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              Mark All Read
+            </button>
+
+            <button 
+              onClick={loadRequests}
+              disabled={loading}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 text-white font-bold border border-white/10 hover:bg-white/10 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.05)] active:scale-95 disabled:opacity-50 flex-grow md:flex-grow-0"
+            >
+              <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
         {loading && requests.length === 0 ? (
@@ -155,14 +201,25 @@ export default function MyRideRequestsPage() {
                    </div>
 
                    <div className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/5">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                        </div>
+                        {acceptedDrivers[req.rideRequestedId]?.driverProfileUrl ? (
+                            <img 
+                                src={acceptedDrivers[req.rideRequestedId].driverProfileUrl} 
+                                alt={req.driverName} 
+                                className="w-10 h-10 rounded-xl object-cover border border-white/10"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                            </div>
+                        )}
                         <div className="flex flex-col">
                             <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Driver</span>
                             <span className="text-sm font-bold text-white tracking-tight">{req.driverName}</span>
+                            {acceptedDrivers[req.rideRequestedId] && (
+                                <span className="text-[10px] font-medium text-emerald-400">Confirmed</span>
+                            )}
                         </div>
                    </div>
                 </div>
@@ -214,6 +271,44 @@ export default function MyRideRequestsPage() {
                         )}
                     </div>
                     
+                    <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-white/5">
+                        {req.rideRequestStatus === 'ACCEPTED' && acceptedDrivers[req.rideRequestedId] ? (
+                            <>
+                                <button 
+                                    onClick={() => window.open(`sms:${acceptedDrivers[req.rideRequestedId].driverPhoneNumber}`)}
+                                    className="flex-1 px-6 py-4 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                    Message Driver
+                                </button>
+                                <button 
+                                    onClick={() => window.open(`tel:${acceptedDrivers[req.rideRequestedId].driverPhoneNumber}`)}
+                                    className="flex-1 px-6 py-4 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                    Call Driver ({acceptedDrivers[req.rideRequestedId].driverPhoneNumber})
+                                </button>
+                            </>
+                        ) : req.rideRequestStatus === 'PENDING' ? (
+                            <button 
+                                onClick={() => handleCancel(req.rideRequestedId)}
+                                className="w-full px-6 py-4 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all"
+                            >
+                                Cancel Ride Request
+                            </button>
+                        ) : (
+                            <div className="w-full py-4 text-center">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    Status: {req.rideRequestStatus}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
                     {req.numberOfRequests && req.numberOfRequests > 1 && (
                          <div className="mt-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />

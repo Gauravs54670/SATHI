@@ -22,9 +22,38 @@ public class DriverPostedRides {
     private String sourceAddress;
     private String destinationAddress;
     private LocalDateTime rideDepartureTime;
-    private RideStatus rideStatus;
+    private LocalDateTime rideCreatedAt;
+    private String rideStatus;
     private BigDecimal estimatedDistanceOfRide;
     private BigDecimal baseFare;
     private BigDecimal pricePerKm;
     private BigDecimal estimatedFare;
+    private Integer availableSeats;
+    private Integer totalSeats;
+    public DriverPostedRides(
+            Long rideId,
+            String sourceAddress,
+            String destinationAddress,
+            LocalDateTime rideDepartureTime,
+            LocalDateTime rideCreatedAt,
+            RideStatus rideStatus,
+            BigDecimal estimatedDistanceOfRide,
+            BigDecimal baseFare,
+            BigDecimal pricePerKm,
+            BigDecimal estimatedFare,
+            Integer availableSeats,
+            Integer totalSeats) {
+        this.rideId = rideId;
+        this.sourceAddress = sourceAddress;
+        this.destinationAddress = destinationAddress;
+        this.rideDepartureTime = rideDepartureTime;
+        this.rideCreatedAt = rideCreatedAt;
+        this.rideStatus = rideStatus.name();
+        this.estimatedDistanceOfRide = estimatedDistanceOfRide;
+        this.baseFare = baseFare;
+        this.pricePerKm = pricePerKm;
+        this.estimatedFare = estimatedFare;
+        this.availableSeats = availableSeats;
+        this.totalSeats = totalSeats;
+    }
 }

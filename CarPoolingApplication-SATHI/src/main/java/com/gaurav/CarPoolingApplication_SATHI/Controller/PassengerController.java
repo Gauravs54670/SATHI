@@ -75,4 +75,5 @@ public class PassengerController {
             "message", "Ride request cancelled successfully"
         ), HttpStatus.OK);
     }
+
 }

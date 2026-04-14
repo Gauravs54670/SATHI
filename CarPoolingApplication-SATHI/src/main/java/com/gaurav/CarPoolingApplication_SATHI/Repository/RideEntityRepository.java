@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -24,11 +25,14 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
                 r.sourceAddress,
                 r.destinationAddress,
                 r.rideDepartureTime,
+                r.rideCreatedAt,
                 r.rideStatus,
                 r.estimatedDistanceOfRide,
                 r.baseFare,
                 r.pricePerKm,
-                r.estimatedFare
+                r.estimatedFare,
+                r.offeredSeats,
+                r.totalAvailableSeats
             )
             FROM RideEntity r
             WHERE r.driverProfileEntity = :driver
@@ -111,6 +115,28 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
     List<AvailablePostedRideDTO> findAvailableRidesWithFilter(
         @Param("now") LocalDateTime now, 
         @Param("city") String city,
+        @Param("sLat") Double sLat,
+        @Param("sLng") Double sLng,
+        @Param("dLat") Double dLat,
+        @Param("dLng") Double dLng,
+        @Param("radius") Double radius
+    );
+    Optional<RideEntity> findByRideIdAndDriverProfileEntity(Long rideId, DriverProfileEntity driverProfileEntity);
+    @Query("""
+        SELECT COUNT(r) > 0 
+        FROM RideEntity r 
+        WHERE r.driverProfileEntity = :driver 
+        AND r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+        AND r.rideDepartureTime BETWEEN :windowStart AND :windowEnd
+        AND (r.sourceLat BETWEEN :sLat - :radius AND :sLat + :radius)
+        AND (r.sourceLng BETWEEN :sLng - :radius AND :sLng + :radius)
+        AND (r.destinationLat BETWEEN :dLat - :radius AND :dLat + :radius)
+        AND (r.destinationLng BETWEEN :dLng - :radius AND :dLng + :radius)
+    """)
+    boolean existsDuplicatePostedRide(
+        @Param("driver") DriverProfileEntity driver,
+        @Param("windowStart") LocalDateTime windowStart,
+        @Param("windowEnd") LocalDateTime windowEnd,
         @Param("sLat") Double sLat,
         @Param("sLng") Double sLng,
         @Param("dLat") Double dLat,

@@ -309,6 +309,21 @@ export async function checkHasActiveRide() {
   return data.data; // returns boolean
 }
 
+export interface DriverPostedRide {
+  rideId: number;
+  sourceAddress: string;
+  destinationAddress: string;
+  rideDepartureTime: string;
+  rideCreatedAt: string;
+  rideStatus: string;
+  estimatedDistanceOfRide: number;
+  baseFare: number;
+  pricePerKm: number;
+  estimatedFare: number;
+  availableSeats: number;
+  totalSeats: number;
+}
+
 export async function fetchActiveRides() {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/driver/active-ride`, {
@@ -316,7 +331,7 @@ export async function fetchActiveRides() {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch active rides");
-  return data.data; // returns DriverPostedRides[]
+  return data.data as DriverPostedRide[];
 }
 
 export interface AvailablePostedRideDTO {
@@ -464,6 +479,29 @@ export interface RideAllBookingRequestsDTO {
   acceptedPassengers: DriverAcceptedRideRequestDTO[];
 }
 
+export interface RideAcceptedPassengerDTO {
+  passengerRideRequestId: number;
+  passengerName: string;
+  passengerEmail: string;
+  passengerPhone: string;
+  passengerPickupLocation: string;
+  passengerDropLocation: string;
+  numberOfSeats: number;
+  passengerGender: string;
+  rideRequestStatus: string;
+  passengerProfilePicture?: string;
+  rideDepartureTime: string;
+}
+
+export interface RideAcceptedDriverDTO {
+  rideRequestId: number;
+  rideId: number;
+  driverName: string;
+  driverPhoneNumber: string;
+  driverProfileUrl?: string;
+  rideStatus: string;
+}
+
 export async function fetchRideRequestUpdates() {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/passenger/ride-request-updates`, {
@@ -504,6 +542,26 @@ export async function fetchRideRequests(rideId: number) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride requests");
   return data.data as RideAllBookingRequestsDTO;
+}
+
+export async function fetchRideAcceptedPassengers(rideId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/ride-accepted-passengers?rideId=${rideId}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch accepted passengers");
+  return data.data as RideAcceptedPassengerDTO[];
+}
+
+export async function fetchRideAcceptedDrivers(rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-accepted-drivers?rideRequestId=${rideRequestId}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch accepted driver");
+  return data.data as RideAcceptedDriverDTO[];
 }
 
 export async function acceptRideRequest(rideId: number, rideRequestId: number) {
@@ -557,4 +615,63 @@ export async function cancelRideRequest(rideRequestId: number) {
     throw new Error(errorMsg);
   }
   return data.message as string;
+}
+
+export interface NotificationDTO {
+  notificationId: number;
+  message: string;
+  type: string;
+  relatedEntityId?: number;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export async function fetchNotifications() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/notifications`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch notifications");
+  return data.data as NotificationDTO[];
+}
+
+export async function fetchUnreadCount() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/notifications/unread-count`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch unread count");
+  return data.data as number;
+}
+
+export async function markAllNotificationsRead() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/notifications/mark-all-read`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to mark all as read");
+  return data.message;
+}
+
+export async function markNotificationRead(id: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/notifications/mark-read/${id}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to mark notification as read");
+  return data.message;
+}
+
+export async function deleteNotification(id: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/notifications/${id}`, {
+    method: "DELETE",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to delete notification");
+  return data.message;
 }

@@ -76,6 +76,7 @@ public class SATHIConfiguration {
                                 .requestMatchers("/driver/**").hasRole("DRIVER")
                                 .requestMatchers("/passenger/**").hasRole("PASSENGER")
                                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                                .requestMatchers("/notifications/**").authenticated()
                                 .anyRequest().authenticated());
         httpSecurity.sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));

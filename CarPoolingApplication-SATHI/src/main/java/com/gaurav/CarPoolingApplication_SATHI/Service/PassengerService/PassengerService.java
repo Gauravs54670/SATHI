@@ -11,6 +11,5 @@ public interface PassengerService {
     List<AvailablePostedRideDTO> getAvailableRides(String email, String city, Double sLat, Double sLng, Double dLat, Double dLng);
     RideSharingResponseToPostedRide requestRide(String email, RideSharingRequestToPostedRide rideSharingRequestToPostedRide);   
     List<RideRequestUpdatesDTO> getRideRequestUpdates(String email);
-    // cancel ride sharing request
-    void cancelRideRequest(String email, Long rideRequestId);    
+    void cancelRideRequest(String email, Long rideRequestId);  
 }

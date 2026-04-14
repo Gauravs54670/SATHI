@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest } from "@/lib/api";
+import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest, fetchRideAcceptedPassengers, RideAcceptedPassengerDTO } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 
 export default function RideRequestsPage() {
@@ -11,7 +11,9 @@ export default function RideRequestsPage() {
   const [requests, setRequests] = useState<RideAllBookingRequestsDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
-  const [successId, setSuccessId] = useState<number | null>(null); // For "Accepted!" transition
+  const [successId, setSuccessId] = useState<number | null>(null); 
+  const [acceptedDetails, setAcceptedDetails] = useState<RideAcceptedPassengerDTO[]>([]);
+  const [loadingAccepted, setLoadingAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -20,6 +22,19 @@ export default function RideRequestsPage() {
       setLoading(true);
       const data = await fetchRideRequests(Number(id));
       setRequests(data);
+      
+      // Fetch rich accepted details if there are confirmed passengers
+      if (data.acceptedPassengers.length > 0) {
+        setLoadingAccepted(true);
+        try {
+          const detailed = await fetchRideAcceptedPassengers(Number(id));
+          setAcceptedDetails(detailed);
+        } catch (err) {
+          console.error("Failed to fetch detailed accepted passengers", err);
+        } finally {
+          setLoadingAccepted(false);
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load ride requests");
     } finally {
@@ -215,37 +230,81 @@ export default function RideRequestsPage() {
                   <div className="h-px flex-1 bg-white/5" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {confirmedRequests.map((request) => (
-                    <div key={request.rideRequestId} className="glass-card p-6 border-emerald-500/10 bg-emerald-500/[0.02] flex items-center justify-between group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                          <span className="text-xl font-black text-emerald-400">{request.passengerName.charAt(0)}</span>
+                <div className="grid grid-cols-1 gap-6">
+                  {confirmedRequests.map((request) => {
+                    // Try to find matching detailed info
+                    const details = acceptedDetails.find(d => d.passengerRideRequestId === request.rideRequestId);
+                    
+                    return (
+                      <div key={request.rideRequestId} className="glass-card p-8 border-emerald-500/10 bg-emerald-500/[0.02] flex flex-col md:flex-row gap-8 items-center group relative overflow-hidden">
+                        {/* Status Label */}
+                        <div className="absolute top-0 right-0 p-4">
+                           <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] font-black text-emerald-500 uppercase tracking-widest">Confirmed</div>
                         </div>
-                        <div>
-                          <h4 className="text-white font-bold">{request.passengerName}</h4>
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{request.requestedSeats} Seat(s) Booked</p>
-                        </div>
-                      </div>
 
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => window.open(`sms:${request.passengerContact}`)}
-                          className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-400 transition-all" title="Message Passenger">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={() => window.open(`tel:${request.passengerContact}`)}
-                          className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/20" title="Call Passenger">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </button>
+                        <div className="flex flex-col items-center gap-3 shrink-0">
+                           {details?.passengerProfilePicture ? (
+                             <img 
+                                src={details.passengerProfilePicture} 
+                                alt={request.passengerName}
+                                className="w-20 h-20 rounded-3xl object-cover border-2 border-emerald-500/20 shadow-xl"
+                             />
+                           ) : (
+                             <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center">
+                               <span className="text-3xl font-black text-emerald-500">{request.passengerName.charAt(0)}</span>
+                             </div>
+                           )}
+                           <div className="text-center">
+                             <h4 className="text-xl font-black text-white">{request.passengerName}</h4>
+                             {details && (
+                               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{details.passengerGender}</p>
+                             )}
+                           </div>
+                        </div>
+
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6">
+                           <div className="space-y-4">
+                              <div>
+                                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] mb-1">Contact Details</p>
+                                <div className="flex flex-col gap-1">
+                                   <p className="text-white font-bold text-sm tracking-tight">{request.passengerContact}</p>
+                                   {details && (
+                                      <p className="text-xs font-medium text-slate-400 lowercase">{details.passengerEmail}</p>
+                                   )}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] mb-1">Seats Reserved</p>
+                                <p className="text-white font-black text-lg">{request.requestedSeats} Seat{request.requestedSeats > 1 ? 's' : ''}</p>
+                              </div>
+                           </div>
+
+                           <div className="space-y-4 pt-1">
+                              <div className="flex gap-3">
+                                <button 
+                                  onClick={() => window.open(`sms:${request.passengerContact}`)}
+                                  className="flex-1 py-4 px-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center gap-3 text-white font-black text-[9px] uppercase tracking-widest hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400 transition-all shadow-xl shadow-black/20"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  Message
+                                </button>
+                                <button 
+                                  onClick={() => window.open(`tel:${request.passengerContact}`)}
+                                  className="flex-1 py-4 px-6 rounded-2xl bg-emerald-500 text-white flex items-center justify-center gap-3 font-black text-[9px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/30"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                  </svg>
+                                  Call Now
+                                </button>
+                              </div>
+                           </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

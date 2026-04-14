@@ -21,6 +21,7 @@ import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateExceptio
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoEntryFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.TooManyRequestException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
+import com.gaurav.CarPoolingApplication_SATHI.Model.Notification.NotificationType;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus;
@@ -30,6 +31,7 @@ import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.PassengerRideRequestRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.RideEntityRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.UserEntityRepository;
+import com.gaurav.CarPoolingApplication_SATHI.Service.Notification.NotificationService;
 
 @Service
 @Slf4j
@@ -53,18 +55,24 @@ public class PassengerServiceImplementation implements PassengerService {
     private static final long RIDE_REQUEST_UPDATES_CACHE_TTL = 1;
     // available rides ttl
     private static final long CACHE_TTL_MINUTES = 10;
+
     private final RedisTemplate<String,Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final RideEntityRepository rideEntityRepository;
     private final PassengerRideRequestRepository passengerRideRequestRepository;
+    private final NotificationService notificationService;
+
     public PassengerServiceImplementation(
         PassengerRideRequestRepository passengerRideRequestRepository,
         RedisTemplate<String,Object> redisTemplate,
-        UserEntityRepository userEntityRepository, RideEntityRepository rideEntityRepository) {
+        UserEntityRepository userEntityRepository, 
+        RideEntityRepository rideEntityRepository,
+        NotificationService notificationService) {
         this.passengerRideRequestRepository = passengerRideRequestRepository;
         this.redisTemplate = redisTemplate;
         this.userEntityRepository = userEntityRepository;
         this.rideEntityRepository = rideEntityRepository;
+        this.notificationService = notificationService;
     }
     // get available rides with caching and proximity filtering support
     @Override
@@ -146,6 +154,7 @@ public class PassengerServiceImplementation implements PassengerService {
             throw e; // re-throw to UI
         } catch (Exception e) {
             log.error("Redis error during rate limiting for user {}: {}. Proceeding without rate limit.", email, e.getMessage());
+            throw new TooManyRequestException("Too many requests. Please try again later.");
         }
         RideEntity rideEntity = this.rideEntityRepository.findById(rideSharingRequestToPostedRide.getRideId())
             .orElseThrow(() -> {
@@ -177,7 +186,7 @@ public class PassengerServiceImplementation implements PassengerService {
         LocalDateTime windowStart = rideEntity.getRideDepartureTime().minusHours(1);
         LocalDateTime windowEnd = rideEntity.getRideDepartureTime().plusHours(1);
         boolean hasConflict = this.passengerRideRequestRepository
-            .hasOverlappingAcceptedRide(user.getUserId(), windowStart, windowEnd);
+            .hasOverlappingAcceptedRide(user.getUserId(), windowStart, windowEnd); 
         if (hasConflict) {
             throw new InvalidRideStateException(
                 "You are already booked on another ride during this time window. " +
@@ -244,6 +253,15 @@ public class PassengerServiceImplementation implements PassengerService {
                 passengerRideRequestEntity = existingReq;
                 log.info("Passenger {} re-requesting ride {}. Status was {}, Attempt #{}, Rejection count: {}",
                     email, rideEntity.getRideId(), currentStatus, passengerRideRequestEntity.getNumberOfRequests(), currentRejectionCount);
+
+                // Notify driver about the re-request
+                notificationService.createNotification(
+                    rideEntity.getDriverProfileEntity().getUser(),
+                    String.format("%s has re-requested your ride from %s to %s (Attempt #%d)", 
+                        user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress(), passengerRideRequestEntity.getNumberOfRequests()),
+                    NotificationType.RIDE_REQUESTED,
+                    passengerRideRequestEntity.getRideRequestId()
+                );
             } else {
                 // Catch-all for any unexpected status (COMPLETED, NOT_BOARDED, etc.)
                 log.warn("Passenger {} has unexpected status {} for ride {}", email, currentStatus, rideEntity.getRideId());
@@ -265,6 +283,15 @@ public class PassengerServiceImplementation implements PassengerService {
                 .rideRequestedAt(LocalDateTime.now())
                 .build();
             log.info("New ride request created by passenger {} for ride {}", email, rideEntity.getRideId());
+            
+            // Notify driver
+            notificationService.createNotification(
+                rideEntity.getDriverProfileEntity().getUser(),
+                String.format("New ride request from %s for your ride from %s to %s", 
+                    user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+                NotificationType.RIDE_REQUESTED,
+                passengerRideRequestEntity.getRideRequestId()
+            );
         }
         // 7. SAVE & POST-SAVE OPERATIONS
         this.passengerRideRequestRepository.save(passengerRideRequestEntity);
@@ -300,7 +327,7 @@ public class PassengerServiceImplementation implements PassengerService {
             .requestedAt(passengerRideRequestEntity.getRideRequestedAt())
             .build();
     }
-    // get ride request updates
+    // get posted ride sharing request updates
     @Override
     public List<RideRequestUpdatesDTO> getRideRequestUpdates(String email) {
         String cacheKey = RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email;
@@ -361,11 +388,21 @@ public class PassengerServiceImplementation implements PassengerService {
         rideRequestEntity.setRideRequestStatus(RideRequestStatus.CANCELLED);
         rideRequestEntity.setRideCancelledAt(LocalDateTime.now());
         this.passengerRideRequestRepository.save(rideRequestEntity);
-        // remove from passenger's own updates cache
+        log.info("Ride request {} cancelled by passenger {}", rideRequestId, email);
+
+        // Notify Driver
+        notificationService.createNotification(
+            rideEntity.getDriverProfileEntity().getUser(),
+            String.format("Passenger %s has cancelled their request for your ride from %s to %s", 
+                passengerEntity.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+            NotificationType.RIDE_CANCELLED,
+            rideRequestId
+        );
+        
+        // Invalidate caches
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
-        // remove from driver's unified ride request updates list so the driver UI immediately updates
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId() + ":unified");
-    } 
+    }
     // helper methods
     private String generateOtp() {
         return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));

@@ -5,23 +5,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "./Avatar";
 import AvatarDropdown from "./AvatarDropdown";
-import { fetchRideRequestUpdates } from "@/lib/api";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, isLoggedIn } = useAuth();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [hasNotification, setHasNotification] = useState(false);
-
-  useEffect(() => {
-    if (isLoggedIn && user) {
-      fetchRideRequestUpdates()
-        .then(requests => {
-          const hasUpdate = requests.some(r => r.rideRequestStatus === 'ACCEPTED' || r.rideRequestStatus === 'REJECTED');
-          setHasNotification(hasUpdate);
-        }).catch(() => {});
-    }
-  }, [isLoggedIn, user]);
 
   return (
     <nav className="sticky top-0 z-40 backdrop-blur-xl bg-[#0f0f1a]/80 border-b border-white/5">
@@ -58,27 +47,27 @@ export default function Navbar() {
               className="text-sm font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2"
             >
               My Ride Requests
-              {hasNotification && (
-                <span className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-              )}
             </button>
           </div>
 
-          {/* Right side — Avatar (logged in) or Sign In button (guest) */}
-          <div className="relative">
+          {/* Right side — Notifications, Avatar (logged in) or Sign In button (guest) */}
+          <div className="flex items-center gap-4">
             {isLoggedIn && user ? (
               <>
-                <Avatar
-                  name={user.userFullName}
-                  email={user.email}
-                  imageUrl={user.profilePictureUrl}
-                  size={38}
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                />
-                <AvatarDropdown
-                  isOpen={dropdownOpen}
-                  onClose={() => setDropdownOpen(false)}
-                />
+                <NotificationBell />
+                <div className="relative">
+                  <Avatar
+                    name={user.userFullName}
+                    email={user.email}
+                    imageUrl={user.profilePictureUrl}
+                    size={38}
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                  />
+                  <AvatarDropdown
+                    isOpen={dropdownOpen}
+                    onClose={() => setDropdownOpen(false)}
+                  />
+                </div>
               </>
             ) : (
               <button
