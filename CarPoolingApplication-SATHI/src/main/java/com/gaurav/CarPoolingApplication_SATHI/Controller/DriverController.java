@@ -148,15 +148,26 @@ public class DriverController {
             "data", rideAcceptedPassengerDTOs
         ), HttpStatus.OK);
     }
+    // start ride
+    @PutMapping("/start-ride")
+    public ResponseEntity<?> startRide(Authentication authentication, @RequestParam("rideId") Long rideId) {
+        String email = authentication.getName();
+        this.driverService.startRide(email, rideId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride started successfully. Passengers have been notified."
+        ), HttpStatus.OK);
+    }
+
     // ride live updates
-    @GetMapping("/ride-live-updates")
-    public ResponseEntity<?> getRideLiveUpdates(Authentication authentication, 
+    @PostMapping("/update-ride-gps")
+    public ResponseEntity<?> updateRideGPS(Authentication authentication, 
             @RequestBody RideGPSUpdatesDTO rideGPSUpdatesDTO) {
         String email = authentication.getName();
         this.driverService.updateRideGPS(email, rideGPSUpdatesDTO);
         return new ResponseEntity<>(Map.of(
             "status", "success",
-            "message", "Ride live updates fetched successfully"
+            "message", "Ride GPS updated successfully"
         ), HttpStatus.OK);
     }
 }

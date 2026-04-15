@@ -5,7 +5,8 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO } from "@/lib/api";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide } from "@/lib/api";
+import { startLiveTracking } from "@/lib/rideTracker";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 import Toast from "@/components/Toast";
 
@@ -23,7 +24,7 @@ export default function DashboardPage() {
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
   const [hasActiveRide, setHasActiveRide] = useState(false);
-  const [postedRides, setPostedRides] = useState<any[]>([]);
+  const [postedRides, setPostedRides] = useState<DriverPostedRide[]>([]);
   const [isFetchingRides, setIsFetchingRides] = useState(false);
   const [showRidesList, setShowRidesList] = useState(false);
   const [passengerRequests, setPassengerRequests] = useState<RideRequestUpdatesDTO[]>([]);
@@ -138,6 +139,26 @@ export default function DashboardPage() {
       setPassengerRequests(updated.filter(r => r.rideRequestStatus === 'PENDING' || r.rideRequestStatus === 'ACCEPTED'));
     } catch (err: any) {
       setToast({ message: err.message || "Failed to cancel booking", type: "ERROR", isVisible: true });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleQuickStartRide = async (rideId: number) => {
+    setActionLoading(true);
+    try {
+      const msg = await startRide(rideId);
+      setToast({ message: msg, type: "SUCCESS", isVisible: true });
+      
+      // Start background GPS tracking
+      startLiveTracking(rideId);
+      
+      // Redirect to active tracking page
+      setTimeout(() => {
+        router.push(`/ride/${rideId}/active`);
+      }, 1500);
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to start ride", type: "ERROR", isVisible: true });
     } finally {
       setActionLoading(false);
     }
@@ -508,15 +529,46 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        <button 
-                          onClick={() => router.push(`/ride/${ride.rideId}/requests`)}
-                          className="w-full py-4 rounded-xl bg-indigo-500 text-white text-xs font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-3 active:scale-[0.98]"
-                        >
-                          View Ride Requests
-                          <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                        </button>
+                        <div className="flex gap-3">
+                            {ride.rideStatus === 'RIDE_POSTED' && (
+                                <button 
+                                  onClick={() => router.push(`/ride/${ride.rideId}/requests`)}
+                                  className="flex-[2] py-4 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2 group"
+                                >
+                                  Manage
+                                  <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                  </svg>
+                                </button>
+                            )}
+                            
+                            {ride.rideStatus === 'RIDE_POSTED' && (
+                                <button 
+                                  onClick={() => handleQuickStartRide(ride.rideId)}
+                                  disabled={actionLoading}
+                                  className="flex-[3] py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                                >
+                                  {actionLoading ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  ) : (
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                  )}
+                                  Start Ride
+                                </button>
+                            )}
+                            
+                            {ride.rideStatus === 'RIDE_IN_PROGRESS' && (
+                                <button 
+                                  onClick={() => router.push(`/ride/${ride.rideId}/active`)}
+                                  className="flex-[3] py-4 rounded-xl bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                    See Live Tracking
+                                </button>
+                            )}
+                        </div>
                       </div>
                     ))}
                   </div>

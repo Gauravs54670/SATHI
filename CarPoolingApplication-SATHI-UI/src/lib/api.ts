@@ -324,6 +324,15 @@ export interface DriverPostedRide {
   totalSeats: number;
 }
 
+export interface RideGPSUpdatesDTO {
+  rideId: number;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  heading: number;
+  timestamp: string; // ISO string
+}
+
 export async function fetchActiveRides() {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/driver/active-ride`, {
@@ -589,6 +598,28 @@ export async function acceptRideRequest(rideId: number, rideRequestId: number) {
     const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
     throw new Error(errorMsg);
   }
+  return data.message as string;
+}
+
+export async function startRide(rideId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/start-ride?rideId=${rideId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to start ride");
+  return data.message as string;
+}
+
+export async function updateRideGPS(payload: RideGPSUpdatesDTO) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/update-ride-gps`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to update GPS");
   return data.message as string;
 }
 

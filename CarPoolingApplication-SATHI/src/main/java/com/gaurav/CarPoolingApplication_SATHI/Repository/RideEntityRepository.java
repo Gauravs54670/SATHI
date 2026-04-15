@@ -144,4 +144,12 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         @Param("dLng") Double dLng,
         @Param("radius") Double radius
     );
+    // check is there a ride whose staus is already IN_PROGRESS
+    @Query("""
+        SELECT COUNT(r) > 0 
+        FROM RideEntity r 
+        WHERE r.driverProfileEntity.driverProfileId = :driverProfileId 
+        AND r.rideStatus IN ('RIDE_IN_PROGRESS')
+    """)
+    boolean existsInProgressRide(@Param("driverProfileId") Long driverProfileId);
 }

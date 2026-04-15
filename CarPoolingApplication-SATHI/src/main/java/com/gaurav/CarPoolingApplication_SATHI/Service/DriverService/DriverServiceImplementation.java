@@ -21,6 +21,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassenge
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCacheDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
@@ -617,6 +618,9 @@ public class DriverServiceImplementation implements DriverService {
             .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
         UserEntity user = driverProfile.getUser();
         validateUserAccount(user);
+        boolean existsInProgressRide = this.rideEntityRepository.existsInProgressRide(driverProfile.getDriverProfileId());
+        if(existsInProgressRide)
+            throw new InvalidRideStateException("You have already started a ride.");
         RideEntity rideEntity = this.rideEntityRepository.findByRideIdAndDriverProfileEntity(rideId, driverProfile)
             .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
         if(rideEntity.getRideDepartureTime().isBefore(LocalDateTime.now()))
@@ -642,7 +646,7 @@ public class DriverServiceImplementation implements DriverService {
                     request.getRideRequestId());
         }
         String startRideCacheKey = RIDE_STARTED_CACHE_KEY + ":" + user.getUserId() + ":" + rideId;
-        this.redisTemplate.opsForValue().set(startRideCacheKey, rideEntity, RIDE_STARTED_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        this.redisTemplate.opsForValue().set(startRideCacheKey, mapToRideCacheDTO(rideEntity), RIDE_STARTED_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         this.rideEntityRepository.save(rideEntity);
         log.info("Ride ID: {} started by driver. notified {} passengers.", rideId, acceptedRequests.size());
     }
@@ -651,7 +655,9 @@ public class DriverServiceImplementation implements DriverService {
     @Override
     public void updateRideGPS(String email, RideGPSUpdatesDTO rideGPSUpdatesDTO) {
         String driverProfileIdCacheKey = DRIVER_ID_CACHE_KEY + ":" + email;
-        Long driverProfileId = (Long) this.redisTemplate.opsForValue().get(driverProfileIdCacheKey);
+        Object cachedValue = this.redisTemplate.opsForValue().get(driverProfileIdCacheKey);
+        Long driverProfileId = (cachedValue == null) ? null : ((Number) cachedValue).longValue();
+
         if(driverProfileId == null) {
             DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
@@ -659,22 +665,51 @@ public class DriverServiceImplementation implements DriverService {
             this.redisTemplate.opsForValue().set(driverProfileIdCacheKey, driverProfileId, DRIVER_ID_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         }
         String rideEntityCacheKey = RIDE_ENTITY_CACHE_KEY + ":" + rideGPSUpdatesDTO.getRideId();
-        RideEntity rideEntity = (RideEntity) this.redisTemplate.opsForValue().get(rideEntityCacheKey);
-        if(rideEntity == null) {
-            rideEntity = this.rideEntityRepository.findById(rideGPSUpdatesDTO.getRideId())
-                .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
-            this.redisTemplate.opsForValue().set(rideEntityCacheKey, rideEntity, RIDE_ENTITY_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        Object cachedRide = this.redisTemplate.opsForValue().get(rideEntityCacheKey);
+        RideCacheDTO rideCacheDTO = null;
+
+        if (cachedRide instanceof RideCacheDTO) {
+            rideCacheDTO = (RideCacheDTO) cachedRide;
+        } else if (cachedRide instanceof java.util.Map) {
+            // Handle cases where Jackson deserializes to Map instead of DTO
+            java.util.Map<?, ?> map = (java.util.Map<?, ?>) cachedRide;
+            rideCacheDTO = RideCacheDTO.builder()
+                .rideId(((Number) map.get("rideId")).longValue())
+                .driverProfileId(((Number) map.get("driverProfileId")).longValue())
+                .rideStatus(RideStatus.valueOf((String) map.get("rideStatus")))
+                .build();
         }
-        if(rideEntity.getDriverProfileEntity().getDriverProfileId() != driverProfileId) {
+
+        if(rideCacheDTO == null) {
+            RideEntity rideEntity = this.rideEntityRepository.findById(rideGPSUpdatesDTO.getRideId())
+                .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
+            rideCacheDTO = mapToRideCacheDTO(rideEntity);
+            this.redisTemplate.opsForValue().set(rideEntityCacheKey, rideCacheDTO, RIDE_ENTITY_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        }
+
+        if(!rideCacheDTO.getDriverProfileId().equals(driverProfileId)) {
             throw new AccessDeniedException("You are not authorized to update the GPS of this ride.");
         }
-        if(rideEntity.getRideStatus() != RideStatus.RIDE_IN_PROGRESS) {
+        if(rideCacheDTO.getRideStatus() != RideStatus.RIDE_IN_PROGRESS) {
             throw new InvalidRideStateException("Ride is not started yet.");
         }
         String rideGPSUpdatesCacheKey = RIDE_GPS_UPDATES_CACHE_KEY + ":" + rideGPSUpdatesDTO.getRideId();
         this.redisTemplate.opsForValue().set(rideGPSUpdatesCacheKey, rideGPSUpdatesDTO, RIDE_GPS_UPDATES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
     }
     // helper methods
+    private RideCacheDTO mapToRideCacheDTO(RideEntity rideEntity) {
+        return RideCacheDTO.builder()
+            .rideId(rideEntity.getRideId())
+            .driverProfileId(rideEntity.getDriverProfileEntity().getDriverProfileId())
+            .sourceAddress(rideEntity.getSourceAddress())
+            .destinationAddress(rideEntity.getDestinationAddress())
+            .rideStatus(rideEntity.getRideStatus())
+            .totalAvailableSeats(rideEntity.getTotalAvailableSeats())
+            .rideDepartureTime(rideEntity.getRideDepartureTime())
+            .rideStartedAt(rideEntity.getRideStartedAt())
+            .build();
+    }
+
     // calculate price per km of ride
     private BigDecimal calculateBaseFareOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
         BigDecimal basePrice = switch (vehicleCategory) {

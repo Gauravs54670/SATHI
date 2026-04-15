@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest, fetchRideAcceptedPassengers, RideAcceptedPassengerDTO } from "@/lib/api";
+import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest, fetchRideAcceptedPassengers, RideAcceptedPassengerDTO, startRide } from "@/lib/api";
+import { startLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
 
 export default function RideRequestsPage() {
   const { id } = useParams();
+  const rideIdNum = typeof id === "string" ? Number(id) : 0;
   const router = useRouter();
   const [requests, setRequests] = useState<RideAllBookingRequestsDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,18 +18,27 @@ export default function RideRequestsPage() {
   const [loadingAccepted, setLoadingAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
 
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const data = await fetchRideRequests(Number(id));
+      const data = await fetchRideRequests(rideIdNum);
       setRequests(data);
+      
+      // If ride is already in progress, show as started
+      if (data.pendingRequests.length === 0 && data.acceptedPassengers.length > 0) {
+        // We might want to check an explicit status field in the future
+        // For now, if tracking is active globally, reflect it
+        if (isTrackingActive()) setIsStarted(true);
+      }
       
       // Fetch rich accepted details if there are confirmed passengers
       if (data.acceptedPassengers.length > 0) {
         setLoadingAccepted(true);
         try {
-          const detailed = await fetchRideAcceptedPassengers(Number(id));
+          const detailed = await fetchRideAcceptedPassengers(rideIdNum);
           setAcceptedDetails(detailed);
         } catch (err) {
           console.error("Failed to fetch detailed accepted passengers", err);
@@ -50,8 +61,8 @@ export default function RideRequestsPage() {
     setProcessingId(requestId);
     try {
       const msg = action === 'accept' 
-        ? await acceptRideRequest(Number(id), requestId)
-        : await rejectRideRequest(Number(id), requestId);
+        ? await acceptRideRequest(rideIdNum, requestId)
+        : await rejectRideRequest(rideIdNum, requestId);
       
       setToast(msg);
       
@@ -73,6 +84,29 @@ export default function RideRequestsPage() {
       setTimeout(() => setToast(null), 3000);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleStartRide = async () => {
+    if (!rideIdNum) return;
+    setIsStarting(true);
+    try {
+      const msg = await startRide(rideIdNum);
+      setToast(msg);
+      setIsStarted(true);
+      
+      // Start background GPS tracking
+      startLiveTracking(rideIdNum);
+      
+      setTimeout(() => {
+        setToast(null);
+        router.push(`/ride/${rideIdNum}/active`);
+      }, 1500);
+    } catch (err: any) {
+      setToast(err.message || "Failed to start ride");
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -309,6 +343,47 @@ export default function RideRequestsPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Start Journey Floating Action Bar */}
+        {!loading && confirmedRequests.length > 0 && !isStarted && (
+           <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-bg-main via-bg-main/90 to-transparent z-[80] animate-fade-in-up">
+              <div className="max-w-4xl mx-auto">
+                 <button
+                    onClick={handleStartRide}
+                    disabled={isStarting}
+                    className="w-full py-5 rounded-3xl bg-gradient-to-r from-emerald-500 via-teal-600 to-emerald-500 shadow-[0_20px_50px_rgba(16,185,129,0.3)] text-white font-black text-sm uppercase tracking-[0.3em] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 relative overflow-hidden group"
+                 >
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                    <span className="relative z-10 flex items-center justify-center gap-3">
+                       {isStarting ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                       ) : (
+                          <svg className="w-6 h-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                       )}
+                       {isStarting ? "Initializing..." : "Start Journey Now"}
+                    </span>
+                 </button>
+                 <p className="text-center text-slate-500 text-[9px] font-black uppercase tracking-widest mt-4 opacity-60">
+                    Officially starts the ride and notifies all passengers
+                 </p>
+              </div>
+           </div>
+        )}
+
+        {/* Live Tracking Status Indicator */}
+        {isStarted && (
+            <div className="fixed top-24 right-6 z-[90] animate-fade-in-right">
+                <div className="glass-card px-4 py-3 border-emerald-500/30 bg-emerald-500/5 flex items-center gap-3 shadow-2xl">
+                    <div className="relative">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping absolute inset-0" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 relative" />
+                    </div>
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Tracking Active</span>
+                </div>
+            </div>
         )}
       </main>
 
