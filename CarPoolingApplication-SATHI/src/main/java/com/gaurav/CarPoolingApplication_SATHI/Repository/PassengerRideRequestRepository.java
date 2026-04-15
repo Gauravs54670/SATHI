@@ -13,6 +13,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassenge
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus;
 
 public interface PassengerRideRequestRepository extends JpaRepository<PassengerRideRequestEntity, Long> {
     @Query("""
@@ -156,4 +157,6 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
             """)
     List<RideAcceptedDriverDTO> findRideAcceptedDriversByPassengerId(Long userId, Long rideRequestId);
 
-}
+    List<PassengerRideRequestEntity> findByRideEntity_RideIdAndRideRequestStatus(Long rideId, RideRequestStatus status);
+
+}

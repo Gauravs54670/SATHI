@@ -68,6 +68,9 @@ public class DriverServiceImplementation implements DriverService {
     private static final String DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_PREFIX = "driver:accepted:rides:requests:";
     private static final long DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_TTL_MINUTES = 10;
     private static final String RIDE_ACCEPTED_DRIVERS_CACHE_KEY = "ride:accepted:drivers";
+    // start ride cache keys
+    private static final String RIDE_STARTED_CACHE_KEY = "ride:started:";
+    private static final long RIDE_STARTED_CACHE_TTL_MINUTES = 5;
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
@@ -613,9 +616,26 @@ public class DriverServiceImplementation implements DriverService {
             throw new NoEntryFoundException("Ride is not posted yet.");
         rideEntity.setRideStatus(RideStatus.RIDE_IN_PROGRESS);
         rideEntity.setRideStartedAt(LocalDateTime.now());
+
+        // Notify Passengers 
+        // Currently, notificationService.createNotification persists the notification to the DB.
+        // The passenger's mobile/web app fetches these via the /notifications endpoint (Polling/Initial fetch).
+        // For real-time delivery, a WebSocket or FCM integration could be added here.
+        List<PassengerRideRequestEntity> acceptedRequests = this.passengerRideRequestRepository
+                .findByRideEntity_RideIdAndRideRequestStatus(rideId, RideRequestStatus.ACCEPTED);
+
+        for (PassengerRideRequestEntity request : acceptedRequests) {
+            notificationService.createNotification(
+                    request.getPassengerEntity(),
+                    String.format("The driver %s has started your ride from %s to %s. Please be ready for pickup.",
+                            user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+                    NotificationType.RIDE_STARTED,
+                    request.getRideRequestId());
+        }
+        String startRideCacheKey = RIDE_STARTED_CACHE_KEY + ":" + user.getUserId() + ":" + rideId;
+        this.redisTemplate.opsForValue().set(startRideCacheKey, rideEntity, RIDE_STARTED_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         this.rideEntityRepository.save(rideEntity);
-        log.info("Ride ID: {} started by driver.", rideId);
-        
+        log.info("Ride ID: {} started by driver. notified {} passengers.", rideId, acceptedRequests.size());
     }
     // helper methods
     // calculate price per km of ride
