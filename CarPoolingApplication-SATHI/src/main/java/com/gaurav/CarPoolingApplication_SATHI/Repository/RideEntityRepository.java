@@ -37,7 +37,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
             FROM RideEntity r
             WHERE r.driverProfileEntity = :driver
             AND r.rideStatus IN :statuses
-            AND (r.rideStatus = 'RIDE_STARTED' OR r.rideDepartureTime >= :now)
+            AND (r.rideStatus IN ('RIDE_STARTED', 'RIDE_IN_PROGRESS') OR r.rideDepartureTime >= :now)
             ORDER BY r.rideDepartureTime ASC
             """)
     List<DriverPostedRides> findFirstActiveRide(
@@ -48,7 +48,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
 
     @Query("SELECT COUNT(r) > 0 FROM RideEntity r WHERE r.driverProfileEntity = :driver " +
            "AND r.rideStatus IN :statuses " +
-           "AND (r.rideStatus = 'RIDE_STARTED' OR r.rideDepartureTime >= :now)")
+           "AND (r.rideStatus IN ('RIDE_STARTED', 'RIDE_IN_PROGRESS') OR r.rideDepartureTime >= :now)")
     boolean existsActiveRide(
         @Param("driver") DriverProfileEntity driver,
         @Param("statuses") Collection<RideStatus> statuses,
@@ -74,7 +74,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
                 r.driverProfileEntity.vehicleCategory
             )
             FROM RideEntity r
-            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED', 'RIDE_IN_PROGRESS')
             AND r.rideDepartureTime >= :now
             AND r.totalAvailableSeats > 0
             AND (:city IS NULL OR :city = '' OR LOWER(r.sourceAddress) LIKE LOWER(CONCAT('%', :city, '%')))
@@ -102,7 +102,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
                 r.driverProfileEntity.vehicleCategory
             )
             FROM RideEntity r
-            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+            WHERE r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED', 'RIDE_IN_PROGRESS')
             AND r.rideDepartureTime >= :now
             AND r.totalAvailableSeats > 0
             AND (:city IS NULL OR :city = '' OR LOWER(r.sourceAddress) LIKE LOWER(CONCAT('%', :city, '%')))
@@ -122,11 +122,12 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         @Param("radius") Double radius
     );
     Optional<RideEntity> findByRideIdAndDriverProfileEntity(Long rideId, DriverProfileEntity driverProfileEntity);
+    Optional<RideEntity> findByRideIdAndDriverProfileEntity_DriverProfileId(Long rideId, Long driverProfileId);
     @Query("""
         SELECT COUNT(r) > 0 
         FROM RideEntity r 
         WHERE r.driverProfileEntity = :driver 
-        AND r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED')
+        AND r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED', 'RIDE_IN_PROGRESS')
         AND r.rideDepartureTime BETWEEN :windowStart AND :windowEnd
         AND (r.sourceLat BETWEEN :sLat - :radius AND :sLat + :radius)
         AND (r.sourceLng BETWEEN :sLng - :radius AND :sLng + :radius)

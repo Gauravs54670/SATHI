@@ -93,6 +93,7 @@ export default function MyRideRequestsPage() {
 
   const rideStatusColors: Record<string, string> = {
     RIDE_POSTED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    RIDE_STARTED: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     RIDE_IN_PROGRESS: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
     RIDE_COMPLETED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     RIDE_FULL: "bg-amber-500/10 text-amber-400 border-amber-500/20",

@@ -19,6 +19,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassenge
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.DriverService.DriverService;
@@ -145,6 +146,17 @@ public class DriverController {
             "status", "success",
             "message", "Ride accepted passengers fetched successfully",
             "data", rideAcceptedPassengerDTOs
+        ), HttpStatus.OK);
+    }
+    // ride live updates
+    @GetMapping("/ride-live-updates")
+    public ResponseEntity<?> getRideLiveUpdates(Authentication authentication, 
+            @RequestBody RideGPSUpdatesDTO rideGPSUpdatesDTO) {
+        String email = authentication.getName();
+        this.driverService.updateRideGPS(email, rideGPSUpdatesDTO);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride live updates fetched successfully"
         ), HttpStatus.OK);
     }
 }

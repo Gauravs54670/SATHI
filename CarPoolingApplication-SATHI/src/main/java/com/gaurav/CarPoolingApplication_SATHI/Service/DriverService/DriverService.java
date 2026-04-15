@@ -8,6 +8,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassenge
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 @Service
@@ -23,4 +24,5 @@ public interface DriverService {
     String rejectRideRequest(String email,Long rideId, Long rideRequestId);
     List<RideAcceptedPassengerDTO> getRideAcceptedPassengers(String email, Long rideId);
     void startRide(String email, Long rideId);
+    void updateRideGPS(String email, RideGPSUpdatesDTO rideGPSUpdatesDTO);
 }
