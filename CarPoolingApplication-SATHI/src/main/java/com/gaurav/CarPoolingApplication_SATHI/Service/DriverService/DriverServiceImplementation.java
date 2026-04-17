@@ -72,9 +72,6 @@ public class DriverServiceImplementation implements DriverService {
     private static final String DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_PREFIX = "driver:accepted:rides:requests:";
     private static final long DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_TTL_MINUTES = 10;
     private static final String RIDE_ACCEPTED_DRIVERS_CACHE_KEY = "ride:accepted:drivers";
-    // start ride cache keys
-    private static final String RIDE_STARTED_CACHE_KEY = "ride:started:";
-    private static final long RIDE_STARTED_CACHE_TTL_MINUTES = 5;
     // real time ride update gps cache keys
     private static final String RIDE_GPS_UPDATES_CACHE_KEY = "ride:gps:updates:";
     private static final long RIDE_GPS_UPDATES_CACHE_TTL_MINUTES = 5;
