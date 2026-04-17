@@ -14,4 +14,5 @@ public interface PassengerService {
     List<RideRequestUpdatesDTO> getRideRequestUpdates(String email);
     void cancelRideRequest(String email, Long rideRequestId);
     List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId);
+    String getOtp(String email, Long rideRequestId);
 }

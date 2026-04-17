@@ -672,6 +672,17 @@ export async function cancelPickup(rideId: number, rideRequestId: number) {
   return data.message as string;
 }
 
+export async function fetchRideOtp(rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/get-otp?rideRequestId=${rideRequestId}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch OTP");
+  return data.data as string;
+}
+
+
 
 export interface NotificationDTO {
   notificationId: number;

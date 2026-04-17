@@ -42,7 +42,6 @@ export default function ActiveRidePage() {
         const data = await fetchRideAcceptedPassengers(rideIdNum);
         setPassengers(data);
         
-        // Ensure tracking is started
         if (!isTrackingActive()) {
           startLiveTracking(rideIdNum);
         }
@@ -55,12 +54,32 @@ export default function ActiveRidePage() {
 
     loadData();
 
-    // Clean up tracking on unmount if needed? 
-    // Usually tracking stays active unless the app closes or ride finishes, 
-    // but for now we'll keep it active.
-  }, [rideIdNum]);
+    // Background polling for synchronization (every 3 seconds)
+    const pollInterval = setInterval(async () => {
+      try {
+        const data = await fetchRideAcceptedPassengers(rideIdNum);
+        setPassengers(data);
+        
+        // If the passenger we are currently verifying has cancelled or boarded, 
+        // automatically close the modal.
+        if (activePassenger) {
+          const updatedState = data.find(p => p.passengerRideRequestId === activePassenger.passengerRideRequestId);
+          if (!updatedState || updatedState.rideRequestStatus === 'ONBOARDED' || updatedState.rideRequestStatus === 'NOT_BOARDED' || updatedState.rideRequestStatus === 'CANCELLED') {
+            setIsOtpModalOpen(false);
+            setActivePassenger(null);
+            setOtpValue("");
+          }
+        }
+      } catch (err) {
+        console.error("Sync polling failed", err);
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [rideIdNum, activePassenger]);
 
   const reloadPassengers = async () => {
+
     try {
       const data = await fetchRideAcceptedPassengers(rideIdNum);
       setPassengers(data);
@@ -345,27 +364,31 @@ export default function ActiveRidePage() {
       {/* OTP Modal */}
       {isOtpModalOpen && activePassenger && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => !isProcessing && setIsOtpModalOpen(false)} />
-          <div className="relative w-full max-w-md glass-card p-10 border-white/10 shadow-2xl animate-in fade-in zoom-in duration-300">
+          {/* Locked Backdrop - No onClick to close */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+          
+          <div className="relative w-full max-w-md glass-card p-10 border-white/10 shadow-[0_0_50px_rgba(99,102,241,0.2)] animate-in fade-in zoom-in duration-300">
             <div className="text-center space-y-6">
               <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto">
                 <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
+              
               <div>
                 <h2 className="text-2xl font-black text-white tracking-tight">Boarding Verification</h2>
-                <p className="text-slate-500 text-[11px] font-black uppercase tracking-widest mt-2 px-8">Ask {activePassenger.passengerName} for the 4-digit OTP</p>
+                <p className="text-slate-500 text-[11px] font-black uppercase tracking-widest mt-2 px-8">Ask {activePassenger.passengerName} for their secure 4-digit code</p>
               </div>
 
               <div className="pt-4">
                 <input 
                   type="text"
                   maxLength={4}
+                  autoFocus
                   value={otpValue}
                   onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ""))}
                   placeholder="0 0 0 0"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-6 text-center text-4xl font-black tracking-[0.5em] text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-white/10"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-6 text-center text-4xl font-black tracking-[0.5em] text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-white/10 shadow-inner"
                 />
               </div>
 
@@ -375,22 +398,22 @@ export default function ActiveRidePage() {
                   disabled={isProcessing || otpValue.length < 4}
                   className="w-full py-5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all shadow-xl shadow-indigo-500/20 active:scale-[0.98]"
                 >
-                  {isProcessing ? "Verifying..." : "Confirm Boarding"}
+                  {isProcessing ? (
+                    <div className="flex items-center justify-center gap-2">
+                       <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                       Verifying...
+                    </div>
+                  ) : "Confirm Boarding"}
                 </button>
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => setIsOtpModalOpen(false)}
-                    disabled={isProcessing}
-                    className="flex-1 py-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-white/10 transition-all"
-                  >
-                    Cancel
-                  </button>
+                
+                <div className="pt-2">
                   <button 
                     onClick={handleCancelPickup}
                     disabled={isProcessing}
-                    className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-red-500/20 transition-all"
+                    className="w-full py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
                   >
-                    Cancel Pickup
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    Cancel Pickup (Passenger No-Show)
                   </button>
                 </div>
               </div>
@@ -398,6 +421,7 @@ export default function ActiveRidePage() {
           </div>
         </div>
       )}
+
 
       <Toast 
         message={toast.message}

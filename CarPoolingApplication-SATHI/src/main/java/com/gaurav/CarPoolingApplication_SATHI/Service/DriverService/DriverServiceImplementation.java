@@ -744,7 +744,7 @@ public class DriverServiceImplementation implements DriverService {
         this.redisTemplate.opsForValue().set(otpRequestCountKey, 0, OTP_REQUEST_COUNT_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         notificationService.createNotification(
             rideReqeustEntity.getPassengerEntity(),
-            String.format("Your OTP is %s", otp),
+            "OTP send successfully for the ride " + rideId,
             NotificationType.OTP_GENERATED,
             rideReqeustEntity.getRideRequestId());
     }

@@ -51,7 +51,9 @@ public class PassengerServiceImplementation implements PassengerService {
     private static final long CACHE_TTL_MINUTES = 10;
     // ride accepted drivers cache key
     private static final String RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX = "ride:accepted:drivers:";
-
+    // get otp cache
+    private static final String OTP_CACHE_PREFIX = "passenger:otp:";
+    private static final Long OTP_CACHE_TTL_MINUTES = 5L;
     private final RedisTemplate<String,Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final RideEntityRepository rideEntityRepository;
@@ -333,7 +335,7 @@ public class PassengerServiceImplementation implements PassengerService {
     @Transactional
     public void cancelRideRequest(String email, Long rideRequestId) {
         UserEntity passengerEntity = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passengerEntity);
         
         PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
@@ -373,12 +375,12 @@ public class PassengerServiceImplementation implements PassengerService {
         rideRequestEntity.setRideCancelledAt(LocalDateTime.now());
         this.passengerRideRequestRepository.save(rideRequestEntity);
         log.info("Ride request {} cancelled by passenger {}", rideRequestId, email);
-
+        
         // Notify Driver
         notificationService.createNotification(
             rideEntity.getDriverProfileEntity().getUser(),
             String.format("Passenger %s has cancelled their request for your ride from %s to %s", 
-                passengerEntity.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+            passengerEntity.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
             NotificationType.RIDE_CANCELLED,
             rideRequestId
         );
@@ -387,19 +389,6 @@ public class PassengerServiceImplementation implements PassengerService {
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId() + ":unified");
     }
-    // validate passenger account
-    private void validatePassengerAccount(UserEntity userEntity) {
-        if(!userEntity.getIsEmailVerified())
-            throw new AccessDeniedException("Account is not verified.");
-        if(userEntity.getIsAdminSuspendedAccount() || 
-            userEntity.getAccountStatus() == UserAccountStatus.SUSPENDED)
-            throw new AccessDeniedException("Account is suspended by ADMIN.");
-        if(userEntity.getAccountStatus() == UserAccountStatus.INACTIVE)
-            throw new AccessDeniedException("Account is inactive.");
-        if(userEntity.getAccountStatus() == UserAccountStatus.DELETED)
-            throw new AccessDeniedException("Account is deleted.");
-    }
-
     // get accepted driver details for a passenger's ride request
     @SuppressWarnings("unchecked")
     @Override
@@ -426,5 +415,49 @@ public class PassengerServiceImplementation implements PassengerService {
         }
         return drivers;
     }
+    // get otp for the ride
+    @Override
+    public String getOtp(String email, Long rideRequestId){
+        UserEntity passenger = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validatePassengerAccount(passenger);
+        PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
+            .findById(rideRequestId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        if (!rideRequestEntity.getPassengerEntity().getUserId().equals(passenger.getUserId())) {
+            throw new AccessDeniedException("You are not authorized to get OTP for this ride request.");
+        }
+        if (!rideRequestEntity.getIsDriverReachedPickupLocation() ||
+            rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
+            throw new InvalidRideStateException("Cannot get OTP for a ride request that is not DRIVER_REACHED_PICKUP_LOCATION.");
+        }
+        if (rideRequestEntity.getOtp() == null) {
+            throw new InvalidRideStateException("OTP has not been generated yet. Please wait for driver arrival.");
+        }
+        String cacheKey = OTP_CACHE_PREFIX + passenger.getUserId() + ":" + rideRequestId;
+        try {
+            String cached = (String) this.redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null)
+                return cached;
+        } catch (Exception e) {
+            log.error("Redis error fetching OTP cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
+        }
+        this.redisTemplate.opsForValue().set(cacheKey, rideRequestEntity.getOtp(), OTP_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return rideRequestEntity.getOtp();
+    }
     
+    // helper methods
+    // validate passenger account
+    private void validatePassengerAccount(UserEntity userEntity) {
+        if(!userEntity.getIsEmailVerified())
+            throw new AccessDeniedException("Account is not verified.");
+        if(userEntity.getIsAdminSuspendedAccount() || 
+            userEntity.getAccountStatus() == UserAccountStatus.SUSPENDED)
+            throw new AccessDeniedException("Account is suspended by ADMIN.");
+        if(userEntity.getAccountStatus() == UserAccountStatus.INACTIVE)
+            throw new AccessDeniedException("Account is inactive.");
+        if(userEntity.getAccountStatus() == UserAccountStatus.DELETED)
+            throw new AccessDeniedException("Account is deleted.");
+    }
+
 }

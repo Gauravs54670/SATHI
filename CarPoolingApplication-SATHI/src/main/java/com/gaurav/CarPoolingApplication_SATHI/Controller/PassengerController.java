@@ -88,4 +88,14 @@ public class PassengerController {
         ), HttpStatus.OK);
     }
 
+    @GetMapping("/get-otp")
+    public ResponseEntity<?> getOtp(Authentication authentication, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        String otp = this.passengerService.getOtp(email, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "OTP fetched successfully",
+            "data", otp
+        ), HttpStatus.OK);
+    }
 }

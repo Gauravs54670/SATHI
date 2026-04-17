@@ -5,7 +5,7 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide } from "@/lib/api";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide, fetchRideOtp } from "@/lib/api";
 import { startLiveTracking } from "@/lib/rideTracker";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 import Toast from "@/components/Toast";
@@ -30,51 +30,63 @@ export default function DashboardPage() {
   const [passengerRequests, setPassengerRequests] = useState<RideRequestUpdatesDTO[]>([]);
   const [isFetchingRequests, setIsFetchingRequests] = useState(false);
 
+  // Synchronized Boarding State (Passenger)
+  const [incomingBoardingRide, setIncomingBoardingRide] = useState<RideRequestUpdatesDTO | null>(null);
+  const [incomingOtp, setIncomingOtp] = useState<string | null>(null);
+
   useEffect(() => {
     let mounted = true;
+    let pollInterval: NodeJS.Timeout;
+
     if (isLoggedIn && user) {
+      // 1. Initial State Fetch
       fetchUserRoles()
         .then(roles => {
           if (!mounted) return;
-
-
-
           if (roles.includes("DRIVER")) {
             setIsDriver(true);
-            fetchDriverProfile()
-              .then(profile => {
-                if (mounted && profile) {
-                  setAvailabilityStatus(profile.driverAvailabilityStatus || "OFF_DUTY");
-                }
-              }).catch(err => console.error("Driver profile not found", err));
-
-            // NEW: Quick check for active rides
-            checkHasActiveRide()
-              .then(hasRide => {
-                if (mounted) setHasActiveRide(hasRide);
-              }).catch(err => {
-                if (mounted) {
-                  setToast({ message: err.message || "Failed to check active rides", type: "ERROR", isVisible: true });
-                }
-              });
+            fetchDriverProfile().then(p => p && setAvailabilityStatus(p.driverAvailabilityStatus || "OFF_DUTY"));
+            checkHasActiveRide().then(hasRide => setHasActiveRide(hasRide));
           }
           
-          // NEW: Fetch passenger requests regardless of roles
-          setIsFetchingRequests(true);
-          fetchRideRequestUpdates()
-            .then(requests => {
-              if (mounted) {
-                // Filter for active ones to keep dashboard clean
-                const active = requests.filter(r => r.rideRequestStatus === 'PENDING' || r.rideRequestStatus === 'ACCEPTED');
-                setPassengerRequests(active);
-              }
-            })
-            .catch(err => console.error("Passenger requests fetch error", err))
-            .finally(() => { if (mounted) setIsFetchingRequests(false); });
-        })
-        .catch(err => console.error("Roles fetch error", err));
+          fetchRideRequestUpdates().then(requests => {
+            if (mounted) {
+              setPassengerRequests(requests.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
+            }
+          });
+        });
+
+      // 2. Synchronized Status Polling (Every 3 seconds)
+      pollInterval = setInterval(async () => {
+        try {
+          const updates = await fetchRideRequestUpdates();
+          if (!mounted) return;
+
+          // Filter out finished/cancelled requests
+          setPassengerRequests(updates.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
+
+          // Check for arrival (OTP phase)
+          const arrivingRide = updates.find(r => r.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION');
+          if (arrivingRide) {
+            if (!incomingBoardingRide || incomingBoardingRide.rideRequestedId !== arrivingRide.rideRequestedId || !incomingOtp) {
+              const otp = await fetchRideOtp(arrivingRide.rideRequestedId);
+              setIncomingOtp(otp);
+              setIncomingBoardingRide(arrivingRide);
+            }
+          } else {
+            setIncomingBoardingRide(null);
+            setIncomingOtp(null);
+          }
+        } catch (err) {
+          console.error("Dashboard sync poll error", err);
+        }
+      }, 3000);
     }
-    return () => { mounted = false; };
+
+    return () => { 
+      mounted = false; 
+      if (pollInterval) clearInterval(pollInterval);
+    };
   }, [isLoggedIn, user]);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -756,6 +768,49 @@ export default function DashboardPage() {
           proceedToOfferRide(); // Auto-cascade
         }} 
       />
+      {/* Passenger Boarding Sync Modal */}
+      {incomingBoardingRide && incomingOtp && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+          <div className="relative w-full max-w-md glass-card p-10 border-white/10 shadow-[0_0_50px_rgba(34,197,94,0.1)] animate-in fade-in zoom-in duration-300">
+             <div className="text-center space-y-8">
+                <div className="flex flex-col items-center">
+                   <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-center mb-6 animate-bounce">
+                      <svg className="w-10 h-10 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                   </div>
+                   <h2 className="text-3xl font-black text-white tracking-tight">Driver has Arrived!</h2>
+                   <p className="text-slate-400 text-xs font-black uppercase tracking-widest mt-3">Share this code with {incomingBoardingRide.driverName} to start your ride</p>
+                </div>
+
+                <div className="relative py-8 bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                   <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+                   <p className="text-6xl font-black text-white tracking-[0.4em] text-center ml-[0.4em] drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                      {incomingOtp}
+                   </p>
+                   <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                     <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Waiting for driver verification</span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => handleCancelBooking(incomingBoardingRide.rideRequestedId)}
+                    className="w-full py-4 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:text-rose-400 transition-colors"
+                  >
+                    Cancel Ride Request
+                  </button>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
+
       <Toast 
         message={toast.message}
         type={toast.type}
