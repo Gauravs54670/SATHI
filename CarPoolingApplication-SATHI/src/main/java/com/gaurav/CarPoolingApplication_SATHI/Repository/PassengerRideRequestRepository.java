@@ -159,4 +159,8 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
 
     List<PassengerRideRequestEntity> findByRideEntity_RideIdAndRideRequestStatus(Long rideId, RideRequestStatus status);
 
+    Optional<PassengerRideRequestEntity> findByRideEntity_RideIdAndRideRequestId(Long rideId, Long rideRequestId);
+
+    
+
 }

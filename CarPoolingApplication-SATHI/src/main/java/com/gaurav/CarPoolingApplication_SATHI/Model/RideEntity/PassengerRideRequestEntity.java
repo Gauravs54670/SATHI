@@ -63,6 +63,7 @@ public class PassengerRideRequestEntity {
     @Builder.Default
     @Column(nullable = false)
     private Integer numberOfRequests = 1;
+    private String otp;
     @CreationTimestamp
     private LocalDateTime rideRequestedAt;
     private LocalDateTime rideAcceptedAt;

@@ -170,4 +170,41 @@ public class DriverController {
             "message", "Ride GPS updated successfully"
         ), HttpStatus.OK);
     }
+
+    // reached passenger pickup point
+    @PutMapping("/reached-passenger")
+    public ResponseEntity<?> reachedPassengerPickUp(Authentication authentication, 
+            @RequestParam("rideId") Long rideId, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        this.driverService.reachedPassengerPickUp(email, rideId, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Assistant: Arrival marked. OTP sent to passenger successfully."
+        ), HttpStatus.OK);
+    }
+
+    // verify passenger otp
+    @PutMapping("/verify-otp")
+    public ResponseEntity<?> verifyPassengerOtp(
+            @RequestParam("rideId") Long rideId, 
+            @RequestParam("rideRequestId") Long rideRequestId,
+            @RequestParam("otp") String otp) {
+        this.driverService.verifyOtp(rideId, rideRequestId, otp);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Passenger boarded successfully."
+        ), HttpStatus.OK);
+    }
+
+    // cancel pickup
+    @PutMapping("/cancel-pickup")
+    public ResponseEntity<?> cancelPickup(Authentication authentication,
+            @RequestParam("rideId") Long rideId, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        this.driverService.cancelPickup(email, rideId, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Pickup cancelled. Seat inventory restored."
+        ), HttpStatus.OK);
+    }
 }

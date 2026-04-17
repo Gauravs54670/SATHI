@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchRideAcceptedPassengers, RideAcceptedPassengerDTO } from "@/lib/api";
+import { 
+  fetchRideAcceptedPassengers, 
+  RideAcceptedPassengerDTO, 
+  notifyDriverReached, 
+  verifyPassengerOtp, 
+  cancelPickup 
+} from "@/lib/api";
 import { startLiveTracking, stopLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
 import Toast from "@/components/Toast";
@@ -20,6 +26,12 @@ export default function ActiveRidePage() {
     type: "SUCCESS",
     isVisible: false
   });
+
+  // OTP Verification State
+  const [activePassenger, setActivePassenger] = useState<RideAcceptedPassengerDTO | null>(null);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (!rideIdNum) return;
@@ -48,12 +60,83 @@ export default function ActiveRidePage() {
     // but for now we'll keep it active.
   }, [rideIdNum]);
 
-  const handleReachedPassenger = (passengerName: string) => {
-    setToast({
-      message: `Verification for ${passengerName} coming soon!`,
-      type: "INFO",
-      isVisible: true
-    });
+  const reloadPassengers = async () => {
+    try {
+      const data = await fetchRideAcceptedPassengers(rideIdNum);
+      setPassengers(data);
+    } catch (err: any) {
+      console.error("Failed to reload passenger data", err);
+    }
+  };
+
+  const handleReachedPassenger = async (passenger: RideAcceptedPassengerDTO) => {
+    try {
+      setIsProcessing(true);
+      await notifyDriverReached(rideIdNum, passenger.passengerRideRequestId);
+      setActivePassenger(passenger);
+      setIsOtpModalOpen(true);
+      setToast({
+        message: "Arrival marked. OTP sent to passenger.",
+        type: "SUCCESS",
+        isVisible: true
+      });
+    } catch (err: any) {
+      setToast({
+        message: err.message || "Failed to notify arrival",
+        type: "ERROR",
+        isVisible: true
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!activePassenger || otpValue.length < 4) return;
+    try {
+      setIsProcessing(true);
+      await verifyPassengerOtp(rideIdNum, activePassenger.passengerRideRequestId, otpValue);
+      setToast({
+        message: `${activePassenger.passengerName} boarded successfully!`,
+        type: "SUCCESS",
+        isVisible: true
+      });
+      setIsOtpModalOpen(false);
+      setOtpValue("");
+      await reloadPassengers();
+    } catch (err: any) {
+      setToast({
+        message: err.message || "Invalid OTP",
+        type: "ERROR",
+        isVisible: true
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelPickup = async () => {
+    if (!activePassenger) return;
+    if (!confirm(`Are you sure you want to cancel the pickup for ${activePassenger.passengerName}?`)) return;
+    try {
+      setIsProcessing(true);
+      await cancelPickup(rideIdNum, activePassenger.passengerRideRequestId);
+      setToast({
+        message: "Pickup cancelled successfully.",
+        type: "SUCCESS",
+        isVisible: true
+      });
+      setIsOtpModalOpen(false);
+      await reloadPassengers();
+    } catch (err: any) {
+      setToast({
+        message: err.message || "Failed to cancel pickup",
+        type: "ERROR",
+        isVisible: true
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (loading) {
@@ -186,31 +269,43 @@ export default function ActiveRidePage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-3 pt-4 border-t border-white/5">
-                        <button 
-                          onClick={() => window.open(`tel:${passenger.passengerPhone}`)}
-                          className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                          Call
-                        </button>
-                        <button 
-                          onClick={() => window.open(`sms:${passenger.passengerPhone}`)}
-                          className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                          Message
-                        </button>
-                        <button 
-                          onClick={() => handleReachedPassenger(passenger.passengerName)}
-                          className="px-6 py-3 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all ml-auto hover:shadow-lg hover:shadow-indigo-500/20 active:scale-95"
-                        >
-                          Reached Pickup Point
-                        </button>
+                        <div className="flex flex-wrap gap-3 pt-4 border-t border-white/5">
+                          <button 
+                            onClick={() => window.open(`tel:${passenger.passengerPhone}`)}
+                            className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                            Call
+                          </button>
+                          
+                          {passenger.rideRequestStatus === 'ONBOARDED' ? (
+                            <div className="px-6 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ml-auto">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                              Boarded
+                            </div>
+                          ) : passenger.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION' ? (
+                            <button 
+                              onClick={() => {
+                                setActivePassenger(passenger);
+                                setIsOtpModalOpen(true);
+                              }}
+                              className="px-6 py-3 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all ml-auto animate-pulse"
+                            >
+                              Verify OTP
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleReachedPassenger(passenger)}
+                              disabled={isProcessing}
+                              className="px-6 py-3 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all ml-auto hover:shadow-lg hover:shadow-indigo-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isProcessing ? "Processing..." : "Reached Pickup Point"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
                 ))
               )}
             </div>
@@ -242,16 +337,67 @@ export default function ActiveRidePage() {
               >
                  Exit to Dashboard
               </button>
-              <button 
-                disabled
-                className="w-full py-4 px-6 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest opacity-50 cursor-not-allowed flex items-center justify-center gap-3"
-              >
-                 Finish Ride
-              </button>
             </div>
           </div>
         </div>
       </main>
+
+      {/* OTP Modal */}
+      {isOtpModalOpen && activePassenger && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => !isProcessing && setIsOtpModalOpen(false)} />
+          <div className="relative w-full max-w-md glass-card p-10 border-white/10 shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto">
+                <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white tracking-tight">Boarding Verification</h2>
+                <p className="text-slate-500 text-[11px] font-black uppercase tracking-widest mt-2 px-8">Ask {activePassenger.passengerName} for the 4-digit OTP</p>
+              </div>
+
+              <div className="pt-4">
+                <input 
+                  type="text"
+                  maxLength={4}
+                  value={otpValue}
+                  onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ""))}
+                  placeholder="0 0 0 0"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-6 text-center text-4xl font-black tracking-[0.5em] text-white focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-white/10"
+                />
+              </div>
+
+              <div className="space-y-4 pt-4">
+                <button 
+                  onClick={handleVerifyOtp}
+                  disabled={isProcessing || otpValue.length < 4}
+                  className="w-full py-5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all shadow-xl shadow-indigo-500/20 active:scale-[0.98]"
+                >
+                  {isProcessing ? "Verifying..." : "Confirm Boarding"}
+                </button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setIsOtpModalOpen(false)}
+                    disabled={isProcessing}
+                    className="flex-1 py-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-white/10 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleCancelPickup}
+                    disabled={isProcessing}
+                    className="flex-1 py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-red-500/20 transition-all"
+                  >
+                    Cancel Pickup
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast 
         message={toast.message}
@@ -262,3 +408,4 @@ export default function ActiveRidePage() {
     </div>
   );
 }
+

@@ -1,6 +1,7 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -28,6 +29,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoEntryFoundException;
+import com.gaurav.CarPoolingApplication_SATHI.Exception.TooManyRequestException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.UserNotFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverAvailabilityStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity.DriverProfileEntity;
@@ -81,6 +83,9 @@ public class DriverServiceImplementation implements DriverService {
     private static final long DRIVER_ID_CACHE_TTL_MINUTES = 30;
     private static final String RIDE_ENTITY_CACHE_KEY = "ride:entity:";
     private static final long RIDE_ENTITY_CACHE_TTL_MINUTES = 30;
+    // otp request count cache keys
+    private static final String OTP_REQUEST_COUNT_CACHE_KEY = "otp:request:count";
+    private static final long OTP_REQUEST_COUNT_CACHE_TTL_MINUTES = 1;
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
@@ -451,8 +456,11 @@ public class DriverServiceImplementation implements DriverService {
             // Update Request Status
             passengerRideRequestEntity.setRideRequestStatus(RideRequestStatus.ACCEPTED);
             passengerRideRequestEntity.setRideAcceptedAt(LocalDateTime.now());
-            // Update Ride Seats
+            
+            // Update Ride Seats correctly
             rideEntity.setTotalAvailableSeats(rideEntity.getTotalAvailableSeats() - passengerRideRequestEntity.getRequestedSeats());
+            rideEntity.setTotalPassengersSharedRide(rideEntity.getTotalPassengersSharedRide() + 1);
+            
             // Check for RIDE_FULL status
             if (rideEntity.getTotalAvailableSeats() == 0) {
                 rideEntity.setRideStatus(RideStatus.RIDE_FULL);
@@ -618,15 +626,20 @@ public class DriverServiceImplementation implements DriverService {
             .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
         UserEntity user = driverProfile.getUser();
         validateUserAccount(user);
+
+        // Enforce singular active ride rule
         boolean existsInProgressRide = this.rideEntityRepository.existsInProgressRide(driverProfile.getDriverProfileId());
-        if(existsInProgressRide)
-            throw new InvalidRideStateException("You have already started a ride.");
+        if (existsInProgressRide) {
+            throw new InvalidRideStateException("You have already started a ride. Please complete or cancel it before starting another.");
+        }
+
         RideEntity rideEntity = this.rideEntityRepository.findByRideIdAndDriverProfileEntity(rideId, driverProfile)
             .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
-        if(rideEntity.getRideDepartureTime().isBefore(LocalDateTime.now()))
-            throw new NoEntryFoundException("Ride has already started.");
-        if(rideEntity.getRideStatus() != RideStatus.RIDE_POSTED)
-            throw new NoEntryFoundException("Ride is not posted yet.");
+        
+        if (rideEntity.getRideStatus() != RideStatus.RIDE_POSTED) {
+            throw new InvalidRideStateException("Only posted rides can be started.");
+        }
+
         rideEntity.setRideStatus(RideStatus.RIDE_IN_PROGRESS);
         rideEntity.setRideStartedAt(LocalDateTime.now());
 
@@ -645,8 +658,11 @@ public class DriverServiceImplementation implements DriverService {
                     NotificationType.RIDE_STARTED,
                     request.getRideRequestId());
         }
-        String startRideCacheKey = RIDE_STARTED_CACHE_KEY + ":" + user.getUserId() + ":" + rideId;
-        this.redisTemplate.opsForValue().set(startRideCacheKey, mapToRideCacheDTO(rideEntity), RIDE_STARTED_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+
+        // Cache the ride state for fast GPS lookup
+        String rideCacheKey = RIDE_ENTITY_CACHE_KEY + ":" + rideId;
+        this.redisTemplate.opsForValue().set(rideCacheKey, mapToRideCacheDTO(rideEntity), RIDE_ENTITY_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        
         this.rideEntityRepository.save(rideEntity);
         log.info("Ride ID: {} started by driver. notified {} passengers.", rideId, acceptedRequests.size());
     }
@@ -656,9 +672,11 @@ public class DriverServiceImplementation implements DriverService {
     public void updateRideGPS(String email, RideGPSUpdatesDTO rideGPSUpdatesDTO) {
         String driverProfileIdCacheKey = DRIVER_ID_CACHE_KEY + ":" + email;
         Object cachedValue = this.redisTemplate.opsForValue().get(driverProfileIdCacheKey);
+        
+        // Defensive cast: Handling Redis Integer vs Long
         Long driverProfileId = (cachedValue == null) ? null : ((Number) cachedValue).longValue();
 
-        if(driverProfileId == null) {
+        if (driverProfileId == null) {
             DriverProfileEntity driverProfileEntity = this.driverEntityRepository.findByUserEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
             driverProfileId = driverProfileEntity.getDriverProfileId();
@@ -671,7 +689,7 @@ public class DriverServiceImplementation implements DriverService {
         if (cachedRide instanceof RideCacheDTO) {
             rideCacheDTO = (RideCacheDTO) cachedRide;
         } else if (cachedRide instanceof java.util.Map) {
-            // Handle cases where Jackson deserializes to Map instead of DTO
+            // Robust fallback for Jackson deserialization into Map
             java.util.Map<?, ?> map = (java.util.Map<?, ?>) cachedRide;
             rideCacheDTO = RideCacheDTO.builder()
                 .rideId(((Number) map.get("rideId")).longValue())
@@ -687,14 +705,100 @@ public class DriverServiceImplementation implements DriverService {
             this.redisTemplate.opsForValue().set(rideEntityCacheKey, rideCacheDTO, RIDE_ENTITY_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         }
 
-        if(!rideCacheDTO.getDriverProfileId().equals(driverProfileId)) {
-            throw new AccessDeniedException("You are not authorized to update the GPS of this ride.");
+        // Authorization & State validation
+        if (!rideCacheDTO.getDriverProfileId().equals(driverProfileId)) {
+            throw new AccessDeniedException("You are not authorized to update GPS for this ride.");
         }
-        if(rideCacheDTO.getRideStatus() != RideStatus.RIDE_IN_PROGRESS) {
-            throw new InvalidRideStateException("Ride is not started yet.");
+        if (rideCacheDTO.getRideStatus() != RideStatus.RIDE_IN_PROGRESS) {
+            throw new InvalidRideStateException("Tracking is only available for rides in progress.");
         }
+
         String rideGPSUpdatesCacheKey = RIDE_GPS_UPDATES_CACHE_KEY + ":" + rideGPSUpdatesDTO.getRideId();
         this.redisTemplate.opsForValue().set(rideGPSUpdatesCacheKey, rideGPSUpdatesDTO, RIDE_GPS_UPDATES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+    }
+    // reached passenger pickup
+    @Override
+    @Transactional
+    public void reachedPassengerPickUp(String email, Long rideId, Long rideReqeustId) {
+        String otpRequestCountKey = OTP_REQUEST_COUNT_CACHE_KEY + ":" + rideId + ":" + rideReqeustId;
+        
+        // Robust Rate Limiting: Set TTL on the very first increment
+        Long count = this.redisTemplate.opsForValue().increment(otpRequestCountKey);
+        if (count != null && count == 1) 
+            this.redisTemplate.expire(otpRequestCountKey, OTP_REQUEST_COUNT_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        if (count != null && count > 3) {
+            long remainingTime = this.redisTemplate.getExpire(otpRequestCountKey, TimeUnit.MINUTES);
+            long timeToShow = (remainingTime > 0) ? remainingTime : OTP_REQUEST_COUNT_CACHE_TTL_MINUTES;
+            throw new TooManyRequestException("OTP request limit exceeded. Please try again in " + timeToShow + " minutes.");
+        }
+
+        DriverProfileEntity driver = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        UserEntity user = driver.getUser();
+        validateUserAccount(user);
+        PassengerRideRequestEntity rideReqeustEntity = this.passengerRideRequestRepository
+            .findByRideEntity_RideIdAndRideRequestId(rideId, rideReqeustId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        String otp = generateOtp();
+        rideReqeustEntity.setOtp(otp);
+        rideReqeustEntity.setIsDriverReachedPickupLocation(true);
+        rideReqeustEntity.setRideRequestStatus(RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION);
+        this.passengerRideRequestRepository.save(rideReqeustEntity);
+        this.redisTemplate.opsForValue().set(otpRequestCountKey, 0, OTP_REQUEST_COUNT_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        notificationService.createNotification(
+            rideReqeustEntity.getPassengerEntity(),
+            String.format("Your OTP is %s", otp),
+            NotificationType.OTP_GENERATED,
+            rideReqeustEntity.getRideRequestId());
+    }
+    // verify otp
+    @Override
+    @Transactional
+    public void verifyOtp(Long rideId, Long rideReqeustId, String otp) {
+        PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
+            .findByRideEntity_RideIdAndRideRequestId(rideId, rideReqeustId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        if(!rideRequestEntity.getIsDriverReachedPickupLocation() && 
+                rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
+            throw new RuntimeException("Driver has not reached pickup location.");
+        }
+        if (!rideRequestEntity.getOtp().equals(otp)) 
+            throw new RuntimeException("Invalid OTP.");
+        rideRequestEntity.setOtp(null);
+        rideRequestEntity.setRideRequestStatus(RideRequestStatus.ONBOARDED);
+        this.passengerRideRequestRepository.save(rideRequestEntity);
+    }
+    // cancel pickup
+    @Override
+    @Transactional
+    public void cancelPickup(String email, Long rideId, Long rideRequestId) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
+            .findByRideEntity_RideIdAndRideRequestId(rideId, rideRequestId)
+            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+        
+        if(!rideRequestEntity.getIsDriverReachedPickupLocation() && 
+                rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
+            throw new InvalidRideStateException("Driver has not reached pickup location.");
+        }
+        
+        rideRequestEntity.setRideRequestStatus(RideRequestStatus.NOT_BOARDED);
+        rideRequestEntity.setIsDriverReachedPickupLocation(false);
+        rideRequestEntity.setOtp(null);
+        
+        RideEntity rideEntity = rideRequestEntity.getRideEntity();
+        // Correctly increment totalAvailableSeats
+        rideEntity.setTotalAvailableSeats(rideEntity.getTotalAvailableSeats() + rideRequestEntity.getRequestedSeats());
+        rideEntity.setTotalPassengersSharedRide(rideEntity.getTotalPassengersSharedRide() - 1);
+        
+        if(rideEntity.getRideStatus() == RideStatus.RIDE_FULL) 
+            rideEntity.setRideStatus(RideStatus.RIDE_IN_PROGRESS);
+            
+        this.rideEntityRepository.save(rideEntity);
+        this.passengerRideRequestRepository.save(rideRequestEntity);
     }
     // helper methods
     private RideCacheDTO mapToRideCacheDTO(RideEntity rideEntity) {
@@ -709,7 +813,7 @@ public class DriverServiceImplementation implements DriverService {
             .rideStartedAt(rideEntity.getRideStartedAt())
             .build();
     }
-
+    
     // calculate price per km of ride
     private BigDecimal calculateBaseFareOfRide(VehicleClass vehicleClass, VehicleCategory vehicleCategory) {
         BigDecimal basePrice = switch (vehicleCategory) {
@@ -768,4 +872,8 @@ public class DriverServiceImplementation implements DriverService {
         }
     }
 
+    private String generateOtp() {
+        SecureRandom random = new SecureRandom();
+        return String.format("%04d", random.nextInt(10000));
+    }
 }

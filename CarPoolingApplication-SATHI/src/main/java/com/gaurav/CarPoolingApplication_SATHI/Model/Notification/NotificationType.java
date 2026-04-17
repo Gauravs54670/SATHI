@@ -7,5 +7,6 @@ public enum NotificationType {
     RIDE_CANCELLED,
     RIDE_STARTED,
     RIDE_COMPLETED,
+    OTP_GENERATED,
     GENERAL
 }

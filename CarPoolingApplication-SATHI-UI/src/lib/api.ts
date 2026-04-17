@@ -637,22 +637,41 @@ export async function cancelRideRequest(rideRequestId: number) {
   const res = await fetchWithAuth(`${API_BASE}/passenger/cancel-ride-request?rideRequestId=${rideRequestId}`, {
     method: "POST",
   });
-  
-  let data;
-  try {
-    data = await res.json();
-  } catch (err) {
-    if (!res.ok) throw new Error(`Server error (${res.status}): Failed to cancel ride request`);
-    throw err;
-  }
-
-  if (!res.ok) {
-    console.error(`Cancel Ride API Error [${res.status}]:`, data);
-    const errorMsg = data.exceptionMessage || data.message || data.error || `Server error (${res.status})`;
-    throw new Error(errorMsg);
-  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to cancel ride request");
   return data.message as string;
 }
+
+export async function notifyDriverReached(rideId: number, rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/reached-passenger?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to notify arrival");
+  return data.message as string;
+}
+
+export async function verifyPassengerOtp(rideId: number, rideRequestId: number, otp: string) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/verify-otp?rideId=${rideId}&rideRequestId=${rideRequestId}&otp=${otp}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to verify OTP");
+  return data.message as string;
+}
+
+export async function cancelPickup(rideId: number, rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/cancel-pickup?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to cancel pickup");
+  return data.message as string;
+}
+
 
 export interface NotificationDTO {
   notificationId: number;
