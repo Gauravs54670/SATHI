@@ -600,6 +600,15 @@ export async function acceptRideRequest(rideId: number, rideRequestId: number) {
   }
   return data.message as string;
 }
+export async function cancelRide(rideId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/cancel-ride?rideId=${rideId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to cancel ride");
+  return data.message as string;
+}
 
 export async function startRide(rideId: number) {
   if (!getAuthToken()) throw new Error("Not logged in");

@@ -11,9 +11,13 @@ interface ToastProps {
   isVisible: boolean;
   onClose: () => void;
   duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
-export default function Toast({ message, type, isVisible, onClose, duration = 5000 }: ToastProps) {
+export default function Toast({ message, type, isVisible, onClose, duration = 5000, action }: ToastProps) {
   const [shouldRender, setShouldRender] = useState(isVisible);
 
   useEffect(() => {
@@ -84,6 +88,17 @@ export default function Toast({ message, type, isVisible, onClose, duration = 50
             {style.title}
           </span>
           <p className="text-sm font-medium text-slate-200 leading-tight">{message}</p>
+          {action && (
+            <button 
+              onClick={() => {
+                action.onClick();
+                onClose();
+              }}
+              className="mt-3 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider transition-all border border-white/10"
+            >
+              {action.label}
+            </button>
+          )}
         </div>
         <button 
           onClick={onClose}

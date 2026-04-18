@@ -144,6 +144,19 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         @Param("dLng") Double dLng,
         @Param("radius") Double radius
     );
+
+    @Query("""
+        SELECT COUNT(r) > 0 
+        FROM RideEntity r 
+        WHERE r.driverProfileEntity = :driver 
+        AND r.rideStatus IN ('RIDE_POSTED', 'RIDE_STARTED', 'RIDE_IN_PROGRESS')
+        AND r.rideDepartureTime BETWEEN :windowStart AND :windowEnd
+    """)
+    boolean existsConflictingRide(
+        @Param("driver") DriverProfileEntity driver,
+        @Param("windowStart") LocalDateTime windowStart,
+        @Param("windowEnd") LocalDateTime windowEnd
+    );
     // check is there a ride whose staus is already IN_PROGRESS
     @Query("""
         SELECT COUNT(r) > 0 

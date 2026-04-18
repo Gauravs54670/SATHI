@@ -24,8 +24,9 @@ public interface DriverService {
     String rejectRideRequest(String email,Long rideId, Long rideRequestId);
     List<RideAcceptedPassengerDTO> getRideAcceptedPassengers(String email, Long rideId);
     void startRide(String email, Long rideId);
+    void cancelRide(String email, Long rideId);
     void updateRideGPS(String email, RideGPSUpdatesDTO rideGPSUpdatesDTO);
     void reachedPassengerPickUp(String email, Long rideId, Long rideReqeustId);
-    void verifyOtp(Long rideId, Long rideReqeustId, String otp);
+    void verifyOtp(Long rideId, Long rideRequestId, String otp);
     void cancelPickup(String email, Long rideId, Long rideRequestId);
 }

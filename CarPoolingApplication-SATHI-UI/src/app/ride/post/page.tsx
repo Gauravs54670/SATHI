@@ -39,14 +39,14 @@ export default function PostRidePage() {
   const [driverStatus, setDriverStatus] = useState<string>("LOADING");
 
   // Toast State
-  const [toast, setToast] = useState<{ show: boolean; msg: string; type: ToastType }>({
+  const [toast, setToast] = useState<{ show: boolean; msg: string; type: ToastType; action?: { label: string; onClick: () => void } }>({
     show: false,
     msg: "",
     type: "INFO"
   });
 
-  const triggerToast = useCallback((msg: string, type: ToastType) => {
-    setToast({ show: true, msg, type });
+  const triggerToast = useCallback((msg: string, type: ToastType, action?: { label: string; onClick: () => void }) => {
+    setToast({ show: true, msg, type, action });
   }, []);
 
   useEffect(() => {
@@ -99,7 +99,16 @@ export default function PostRidePage() {
       setTimeout(() => router.push("/dashboard"), 3000);
     } catch (err: any) {
       const errorMsg = err.message || "Failed to post ride. Please check all fields.";
-      triggerToast(errorMsg, "ERROR");
+      
+      // Specialized handling for Overlap errors
+      if (errorMsg.toLowerCase().includes("overlap detected")) {
+        triggerToast(errorMsg, "ERROR", {
+          label: "View My Rides",
+          onClick: () => router.push("/dashboard")
+        });
+      } else {
+        triggerToast(errorMsg, "ERROR");
+      }
     } finally {
       setLoading(false);
     }
@@ -315,6 +324,7 @@ export default function PostRidePage() {
         isVisible={toast.show}
         message={toast.msg}
         type={toast.type}
+        action={toast.action}
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
     </div>

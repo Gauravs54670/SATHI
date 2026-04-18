@@ -83,6 +83,10 @@ public class DriverServiceImplementation implements DriverService {
     // otp request count cache keys
     private static final String OTP_REQUEST_COUNT_CACHE_KEY = "otp:request:count";
     private static final long OTP_REQUEST_COUNT_CACHE_TTL_MINUTES = 1;
+
+    // Fixed Error 1: Passenger Update Cache Key (Matching PassengerServiceImplementation)
+    private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
@@ -203,8 +207,8 @@ public class DriverServiceImplementation implements DriverService {
             throw new IllegalArgumentException("Ride departure time cannot be more than 7 days from now."+
                 " Please post ride within 7 days.");
                 
-        // Anti-spam / Double-booking prevention: Check for exactly similar rides within a 2-hour window
-        boolean isDuplicate = this.rideEntityRepository.existsDuplicatePostedRide(
+        // 1. Anti-spam / Duplicate Route check (1-hour tight window for same route)
+        boolean isDuplicateRoute = this.rideEntityRepository.existsDuplicatePostedRide(
                 driverProfileEntity,
                 rideDeparturDateTime.minusHours(1),
                 rideDeparturDateTime.plusHours(1),
@@ -212,10 +216,20 @@ public class DriverServiceImplementation implements DriverService {
                 rideRequestDTO.getSourceLong(),
                 rideRequestDTO.getDestinationLat(),
                 rideRequestDTO.getDestinationLong(),
-                0.05 // Roughly a 5km radius to catch identical or nears-miss postings
+                0.05 
         );
-        if (isDuplicate) {
+        if (isDuplicateRoute) {
             throw new IllegalArgumentException("You have already posted a similar ride for this route near this departure time. Please manage your existing ride instead.");
+        }
+
+        // 2. Global Conflict Check (2-hour window for ANY ride)
+        boolean hasConflict = this.rideEntityRepository.existsConflictingRide(
+                driverProfileEntity,
+                rideDeparturDateTime.minusHours(2),
+                rideDeparturDateTime.plusHours(2)
+        );
+        if (hasConflict) {
+            throw new IllegalArgumentException("Overlap Detected: You already have another ride scheduled within 2 hours of this departure time. Please ensure your rides do not overlap.");
         }
 
         // service-level logic)
@@ -465,6 +479,8 @@ public class DriverServiceImplementation implements DriverService {
             }
             this.rideEntityRepository.save(rideEntity);
             this.passengerRideRequestRepository.save(passengerRideRequestEntity);
+            this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId + ":unified");
+            
             log.info("Ride request ID: {} accepted for ride ID: {}. Remaining seats: {}", 
                 rideRequestId, rideId, rideEntity.getTotalAvailableSeats());
 
@@ -509,7 +525,12 @@ public class DriverServiceImplementation implements DriverService {
             this.redisTemplate.delete(DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_PREFIX + driverProfileEntity.getUser().getUserId() + ":" + rideId + ":unified");
             // 5. Invalidate "Accepted Drivers" cache (so passenger sees the driver's phone)
             this.redisTemplate.delete(RIDE_ACCEPTED_DRIVERS_CACHE_KEY + ":" + passengerId + ":" + rideRequestId);
-            // 6. Invalidate ALL available rides caches for passengers (seat counts changed)
+            
+            // 6. Fix for Error 1: Invalidate Passenger's Update List cache (so they see ACCEPTED instantly)
+            String passengerEmail = passengerRideRequestEntity.getPassengerEntity().getEmail();
+            this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
+
+            // 7. Invalidate ALL available rides caches for passengers (seat counts changed)
             java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
             if (availableRideKeys != null && !availableRideKeys.isEmpty()) 
                 this.redisTemplate.delete(availableRideKeys);
@@ -570,6 +591,10 @@ public class DriverServiceImplementation implements DriverService {
             if (availableRideKeys != null && !availableRideKeys.isEmpty()) {
                 this.redisTemplate.delete(availableRideKeys);
             }
+
+            // Fix for Error 1: Invalidate Passenger's Update List cache (so they see REJECTED instantly)
+            String passengerEmail = passengerRideRequestEntity.getPassengerEntity().getEmail();
+            this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
 
             return "Ride request rejected successfully.";
         }catch(Exception e){
@@ -663,6 +688,50 @@ public class DriverServiceImplementation implements DriverService {
         this.rideEntityRepository.save(rideEntity);
         log.info("Ride ID: {} started by driver. notified {} passengers.", rideId, acceptedRequests.size());
     }
+    // cancel ride
+    @Override
+    @Transactional
+    public void cancelRide(String email, Long rideId) {
+        DriverProfileEntity driverProfle = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfle.getUser();
+        validateUserAccount(user);
+        RideEntity rideEntity = this.rideEntityRepository
+            .findByRideIdAndDriverProfileEntity_DriverProfileId(rideId, driverProfle.getDriverProfileId())
+            .orElseThrow(() -> new NoEntryFoundException("Ride not found."));
+        if(!(rideEntity.getRideStatus() == RideStatus.RIDE_POSTED || 
+            rideEntity.getRideStatus() == RideStatus.RIDE_IN_PROGRESS || 
+            rideEntity.getRideStatus() == RideStatus.RIDE_STARTED))
+            throw new InvalidRideStateException("Ride cannot be cancelled. Only posted, in progress or started rides can be cancelled.");
+        List<PassengerRideRequestEntity> passengerRideRequests = this.passengerRideRequestRepository
+            .findByRideEntity_RideIdAndRideRequestStatus(rideId, RideRequestStatus.ACCEPTED);
+        for (PassengerRideRequestEntity request : passengerRideRequests) {
+            request.setRideRequestStatus(RideRequestStatus.CANCELLED);
+            this.passengerRideRequestRepository.save(request);
+            notificationService.createNotification(
+                request.getPassengerEntity(),
+                String.format("The driver %s has cancelled your ride from %s to %s. Please find another ride.",
+                        user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+                NotificationType.RIDE_CANCELLED,
+                request.getRideRequestId());
+        }
+        rideEntity.setRideStatus(RideStatus.RIDE_CANCELLED);
+        rideEntity.setRideUpdatedAt(LocalDateTime.now());
+        this.rideEntityRepository.save(rideEntity);
+        log.info("Ride ID: {} cancelled by driver.", rideId);
+
+        // 3. Cache Invalidation
+        this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
+        this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
+        this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId + ":unified");
+        
+        // Invalidate Available Rides Cache (though this was in-progress, 
+        // cleaning up global caches is safe)
+        java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
+        if (availableRideKeys != null && !availableRideKeys.isEmpty()) {
+            this.redisTemplate.delete(availableRideKeys);
+        }
+    }
     // real time ride GPS updates tracking
     @Transactional
     @Override
@@ -736,6 +805,12 @@ public class DriverServiceImplementation implements DriverService {
         PassengerRideRequestEntity rideReqeustEntity = this.passengerRideRequestRepository
             .findByRideEntity_RideIdAndRideRequestId(rideId, rideReqeustId)
             .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+
+        // Safety Lock: Prevent duplicate arrival notifications if already onboard or completed
+        if (rideReqeustEntity.getRideRequestStatus() == RideRequestStatus.ONBOARDED || 
+            rideReqeustEntity.getRideRequestStatus() == RideRequestStatus.COMPLETED) {
+            throw new InvalidRideStateException("Action blocked: Passenger is already onboard or ride is completed.");
+        }
         String otp = generateOtp();
         rideReqeustEntity.setOtp(otp);
         rideReqeustEntity.setIsDriverReachedPickupLocation(true);
@@ -747,14 +822,25 @@ public class DriverServiceImplementation implements DriverService {
             "OTP send successfully for the ride " + rideId,
             NotificationType.OTP_GENERATED,
             rideReqeustEntity.getRideRequestId());
+
+        // Fix for Error 1: Invalidate Passenger's Update List cache (so they see ARRIVED status instantly)
+        String passengerEmail = rideReqeustEntity.getPassengerEntity().getEmail();
+        this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
     }
     // verify otp
     @Override
     @Transactional
-    public void verifyOtp(Long rideId, Long rideReqeustId, String otp) {
+    public void verifyOtp(Long rideId, Long rideRequestId, String otp) {
         PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
-            .findByRideEntity_RideIdAndRideRequestId(rideId, rideReqeustId)
+            .findByRideEntity_RideIdAndRideRequestId(rideId, rideRequestId)
             .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+
+        // Safety Lock: Prevent duplicate arrival notifications if already onboard or completed
+        if (rideRequestEntity.getRideRequestStatus() == RideRequestStatus.ONBOARDED || 
+            rideRequestEntity.getRideRequestStatus() == RideRequestStatus.COMPLETED) {
+            throw new InvalidRideStateException("Action blocked: Passenger is already onboard or ride is completed.");
+        }
+
         if(!rideRequestEntity.getIsDriverReachedPickupLocation() && 
                 rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
             throw new RuntimeException("Driver has not reached pickup location.");
@@ -763,7 +849,15 @@ public class DriverServiceImplementation implements DriverService {
             throw new RuntimeException("Invalid OTP.");
         rideRequestEntity.setOtp(null);
         rideRequestEntity.setRideRequestStatus(RideRequestStatus.ONBOARDED);
+        
+        // Fix for Error 2 & Onboarding Stability: 
+        // 1. Reset arrival flag so frontend stops fetching OTP
+        rideRequestEntity.setIsDriverReachedPickupLocation(false);
         this.passengerRideRequestRepository.save(rideRequestEntity);
+
+        // 2. Invalidate Passenger Cache so UI sees ONBOARDED immediately
+        String passengerEmail = rideRequestEntity.getPassengerEntity().getEmail();
+        this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
     }
     // cancel pickup
     @Override

@@ -158,6 +158,16 @@ public class DriverController {
             "message", "Ride started successfully. Passengers have been notified."
         ), HttpStatus.OK);
     }
+    // cancel ride
+    @PutMapping("/cancel-ride")
+    public ResponseEntity<?> cancelRide(Authentication authentication, @RequestParam("rideId") Long rideId) {
+        String email = authentication.getName();
+        this.driverService.cancelRide(email, rideId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride cancelled successfully. Passengers have been notified."
+        ), HttpStatus.OK);
+    }
 
     // ride live updates
     @PostMapping("/update-ride-gps")

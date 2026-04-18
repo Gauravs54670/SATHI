@@ -38,7 +38,10 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
             AND prr.rideRequestStatus IN (
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.PENDING,
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED,
-                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.REJECTED
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.REJECTED,
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION,
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED,
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.COMPLETED
             )
             AND prr.rideEntity.rideDepartureTime BETWEEN :windowStart AND :windowEnd
             ORDER BY prr.rideRequestedAt DESC

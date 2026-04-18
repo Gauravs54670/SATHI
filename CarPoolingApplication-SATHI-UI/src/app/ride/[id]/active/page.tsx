@@ -7,7 +7,8 @@ import {
   RideAcceptedPassengerDTO, 
   notifyDriverReached, 
   verifyPassengerOtp, 
-  cancelPickup 
+  cancelPickup,
+  cancelRide
 } from "@/lib/api";
 import { startLiveTracking, stopLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
@@ -153,6 +154,21 @@ export default function ActiveRidePage() {
         type: "ERROR",
         isVisible: true
       });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAbortRide = async () => {
+    if (!confirm("Are you sure you want to cancel this entire ride? All passengers will be notified and the tracking will stop.")) return;
+    try {
+      setIsProcessing(true);
+      await cancelRide(rideIdNum);
+      setToast({ message: "Ride cancelled successfully", type: "INFO", isVisible: true });
+      stopLiveTracking();
+      setTimeout(() => router.push('/dashboard'), 1500);
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to cancel ride", type: "ERROR", isVisible: true });
     } finally {
       setIsProcessing(false);
     }
@@ -355,6 +371,17 @@ export default function ActiveRidePage() {
                 className="w-full py-4 px-6 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-3"
               >
                  Exit to Dashboard
+              </button>
+
+              <button 
+                onClick={handleAbortRide}
+                disabled={isProcessing}
+                className="w-full py-4 px-6 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all flex items-center justify-center gap-3 group"
+              >
+                 <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+                 Abort / Cancel Ride
               </button>
             </div>
           </div>

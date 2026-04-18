@@ -5,8 +5,8 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide, fetchRideOtp } from "@/lib/api";
-import { startLiveTracking } from "@/lib/rideTracker";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide, fetchRideOtp, cancelRide } from "@/lib/api";
+import { startLiveTracking, stopLiveTracking } from "@/lib/rideTracker";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 import Toast from "@/components/Toast";
 
@@ -171,6 +171,27 @@ export default function DashboardPage() {
       }, 1500);
     } catch (err: any) {
       setToast({ message: err.message || "Failed to start ride", type: "ERROR", isVisible: true });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelRide = async (rideId: number) => {
+    if (!confirm("Are you sure you want to cancel this ENTIRE ride? All accepted passengers will be notified and cancelled.")) return;
+    setActionLoading(true);
+    try {
+      const msg = await cancelRide(rideId);
+      setToast({ message: msg, type: "SUCCESS", isVisible: true });
+      
+      // Stop tracking if it was the active ride
+      stopLiveTracking();
+
+      // Refresh state
+      const hasRide = await checkHasActiveRide();
+      setHasActiveRide(hasRide);
+      handleFetchActiveRides(); // Reload list
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to cancel ride", type: "ERROR", isVisible: true });
     } finally {
       setActionLoading(false);
     }
@@ -580,6 +601,18 @@ export default function DashboardPage() {
                                     See Live Tracking
                                 </button>
                             )}
+
+                            {/* Cancel Button - visible for both POSTED and IN_PROGRESS */}
+                            <button 
+                              onClick={() => handleCancelRide(ride.rideId)}
+                              disabled={actionLoading}
+                              className="px-4 py-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                              title="Cancel Ride"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                       </div>
                     ))}
