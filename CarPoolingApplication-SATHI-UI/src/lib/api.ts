@@ -455,10 +455,35 @@ export interface RideRequestUpdatesDTO {
   passengerDestinationLocation: string;
   requestedSeats: number;
   estimatedFare: number;
+  finalFare?: number;
+  estimatedFareAtRequest?: number;
+  fullJourneyFare?: number;
+  seatsOffered?: number;
   rideStatus: string;
   isDriverReachedPickupLocation: boolean;
   rejectionCount?: number;
   numberOfRequests?: number;
+}
+
+export interface PassengerRideReceiptDTO {
+  rideRequestId: number;
+  rideId: number;
+  driverName: string;
+  driverPhoneNumber: string;
+  driverProfilePictureUrl?: string;
+  vehicleModel: string;
+  vehicleNumber: string;
+  sourceLocation: string;
+  destinationLocation: string;
+  departureTime: string;
+  completionTime: string;
+  rideStatus: string;
+  fullJourneyFare: number;
+  estimatedFareAtRequest: number;
+  finalFarePaid: number;
+  totalSeatsOffered: number;
+  requestedSeats: number;
+  billingDistance: number;
 }
 
 export interface PassengerRideBookingRequest {
@@ -579,6 +604,16 @@ export async function fetchRideAcceptedDrivers(rideRequestId: number) {
   return data.data as RideAcceptedDriverDTO[];
 }
 
+export async function fetchRideReceipt(rideRequestId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-receipt?rideRequestId=${rideRequestId}`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch ride receipt");
+  return data.data as PassengerRideReceiptDTO;
+}
+
 export async function acceptRideRequest(rideId: number, rideRequestId: number) {
   if (!getAuthToken()) throw new Error("Not logged in");
   const res = await fetchWithAuth(`${API_BASE}/driver/accept-ride-request?rideId=${rideId}&rideRequestId=${rideRequestId}`, {
@@ -689,6 +724,33 @@ export async function fetchRideOtp(rideRequestId: number) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch OTP");
   return data.data as string;
+}
+
+export interface RideCompletedDTO {
+  rideId: number;
+  rideStatus: string;
+  totalRideFare: number;
+  rideFarePerPassenger: number;
+  systemCommission: number;
+  driverEarning: number;
+  estimatedDistance: number;
+  actualDistance: number;
+  billingDistance: number;
+  totalPassengersCompleted: number;
+  totalSeatsOccupied: number;
+  fullJourneyCost: number;
+  totalSeatsOffered: number;
+  message: string;
+}
+
+export async function completeRide(rideId: number) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/complete-ride?rideId=${rideId}`, {
+    method: "PUT",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to complete ride");
+  return data.data as RideCompletedDTO;
 }
 
 

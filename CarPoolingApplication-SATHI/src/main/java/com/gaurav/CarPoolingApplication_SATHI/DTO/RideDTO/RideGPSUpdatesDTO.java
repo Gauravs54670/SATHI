@@ -19,4 +19,7 @@ public class RideGPSUpdatesDTO {
     private Double speed;     
     private Double heading;   
     private LocalDateTime timestamp;
+    // Accumulated total distance traveled (in km) — incremented with each GPS update
+    @Builder.Default
+    private Double totalDistanceTraveled = 0.0;
 }

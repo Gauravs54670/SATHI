@@ -62,8 +62,8 @@ export default function DashboardPage() {
           const updates = await fetchRideRequestUpdates();
           if (!mounted) return;
 
-          // Filter out finished/cancelled requests
-          setPassengerRequests(updates.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
+          // Include COMPLETED requests for receipt access
+          setPassengerRequests(updates.filter(r => r.rideRequestStatus !== 'CANCELLED'));
 
           // Check for arrival (OTP phase)
           const arrivingRide = updates.find(r => r.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION');
@@ -390,10 +390,16 @@ export default function DashboardPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {passengerRequests.map((req) => (
-                      <div key={req.rideRequestedId} className="glass-card p-6 border-white/5 hover:border-purple-500/30 transition-all group relative overflow-hidden">
+                      <div 
+                        key={req.rideRequestedId} 
+                        onClick={() => router.push(`/ride/track/${req.rideRequestedId}`)}
+                        className="glass-card p-6 border-white/5 hover:border-purple-500/30 transition-all group relative overflow-hidden cursor-pointer"
+                      >
                         <div className="absolute top-0 right-0 p-3">
                            <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest border ${
-                             req.rideRequestStatus === 'ACCEPTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                             req.rideRequestStatus === 'ACCEPTED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                             req.rideRequestStatus === 'COMPLETED' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 
+                             'bg-amber-500/10 text-amber-400 border-amber-500/20'
                            }`}>
                              {req.rideRequestStatus}
                            </span>
@@ -407,7 +413,7 @@ export default function DashboardPage() {
                            </div>
                            <div>
                               <p className="text-xs font-black text-white">{req.driverName}</p>
-                              <p className="text-[10px] text-slate-500 font-medium">Driver</p>
+                              <p className="text-[10px] text-slate-500 font-medium capitalize">{req.rideStatus.toLowerCase().replace('_', ' ')}</p>
                            </div>
                         </div>
 
@@ -427,12 +433,34 @@ export default function DashboardPage() {
                               <span className="text-xs font-black text-white">{new Date(req.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{new Date(req.rideDepartureTime).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
                            </div>
-                           <button 
-                             onClick={() => handleCancelBooking(req.rideRequestedId)}
-                             className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
-                           >
-                             Cancel
-                           </button>
+                           <div className="flex gap-2">
+                              {req.rideRequestStatus === 'COMPLETED' ? (
+                                <button 
+                                  className="px-4 py-2 rounded-xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
+                                >
+                                  Receipt
+                                </button>
+                              ) : (
+                                <>
+                                  <button 
+                                    className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                                  >
+                                    Track
+                                  </button>
+                                  {(req.rideRequestStatus === 'PENDING' || req.rideRequestStatus === 'ACCEPTED') && (
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCancelBooking(req.rideRequestedId);
+                                      }}
+                                      className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                           </div>
                         </div>
                       </div>
                     ))}

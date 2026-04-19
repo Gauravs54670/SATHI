@@ -1,5 +1,6 @@
 package com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -64,6 +65,13 @@ public class PassengerRideRequestEntity {
     @Column(nullable = false)
     private Integer numberOfRequests = 1;
     private String otp;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal finalFare;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal estimatedFareAtRequest;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal fullJourneyFare;
+    private Integer totalSeatsOffered;
     @CreationTimestamp
     private LocalDateTime rideRequestedAt;
     private LocalDateTime rideAcceptedAt;

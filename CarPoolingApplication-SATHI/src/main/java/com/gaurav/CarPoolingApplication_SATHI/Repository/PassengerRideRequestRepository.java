@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverAcceptedRideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
@@ -28,6 +29,10 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 prr.passengerDestinationLocation,
                 prr.requestedSeats,
                 prr.rideEntity.estimatedFare,
+                prr.finalFare,
+                prr.estimatedFareAtRequest,
+                prr.fullJourneyFare,
+                prr.totalSeatsOffered,
                 prr.rideEntity.rideStatus,
                 prr.isDriverReachedPickupLocation,
                 prr.rejectionCount,
@@ -139,6 +144,33 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
 
     // Passenger view: Get the accepted driver's details for a specific ride request
     @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO(
+                prr.rideRequestId,
+                prr.rideEntity.rideId,
+                prr.rideEntity.driverProfileEntity.user.userFullName,
+                prr.rideEntity.driverProfileEntity.user.phoneNumber,
+                prr.rideEntity.driverProfileEntity.user.profilePictureUrl,
+                prr.rideEntity.driverProfileEntity.vehicleModel,
+                prr.rideEntity.driverProfileEntity.vehicleNumber,
+                prr.passengerSourceLocation,
+                prr.passengerDestinationLocation,
+                prr.rideEntity.rideDepartureTime,
+                prr.rideCompletedAt,
+                prr.rideEntity.rideStatus,
+                prr.fullJourneyFare,
+                prr.estimatedFareAtRequest,
+                prr.finalFare,
+                prr.totalSeatsOffered,
+                prr.requestedSeats,
+                prr.rideEntity.actualDistanceOfRide
+            )
+            FROM PassengerRideRequestEntity prr
+            WHERE prr.rideRequestId = :rideRequestId
+            AND prr.passengerEntity.userId = :userId
+            """)
+    Optional<PassengerRideReceiptDTO> findRideReceiptByRequestIdAndPassengerId(Long rideRequestId, Long userId);
+
+    @Query("""
             SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO(
                 prr.rideRequestId,
                 prr.rideEntity.rideId,
@@ -164,6 +196,13 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
 
     Optional<PassengerRideRequestEntity> findByRideEntity_RideIdAndRideRequestId(Long rideId, Long rideRequestId);
 
-    
+    List<PassengerRideRequestEntity> findByRideEntity_RideId(Long rideId);
 
+    @Query("""
+        SELECT COALESCE(SUM(prr.requestedSeats), 0) 
+        FROM PassengerRideRequestEntity prr 
+        WHERE prr.rideEntity.rideId = :rideId 
+        AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED
+        """)
+    int countOnboardedSeatsForRide(Long rideId);
 }

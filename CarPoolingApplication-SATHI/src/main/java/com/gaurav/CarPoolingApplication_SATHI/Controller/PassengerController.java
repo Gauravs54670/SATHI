@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
@@ -96,6 +97,17 @@ public class PassengerController {
             "status", "success",
             "message", "OTP fetched successfully",
             "data", otp
+        ), HttpStatus.OK);
+    }
+
+    @GetMapping("/ride-receipt")
+    public ResponseEntity<?> getRideReceipt(Authentication authentication, @RequestParam("rideRequestId") Long rideRequestId) {
+        String email = authentication.getName();
+        PassengerRideReceiptDTO receipt = this.passengerService.getRideReceipt(email, rideRequestId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Ride receipt fetched successfully",
+            "data", receipt
         ), HttpStatus.OK);
     }
 }

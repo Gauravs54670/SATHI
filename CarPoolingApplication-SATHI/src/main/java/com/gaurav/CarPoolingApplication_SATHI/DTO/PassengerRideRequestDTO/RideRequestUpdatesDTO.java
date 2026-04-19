@@ -28,6 +28,10 @@ public class RideRequestUpdatesDTO {
     private Boolean isDriverReachedPickupLocation;
     private Integer rejectionCount;
     private Integer numberOfRequests;
+    private BigDecimal finalFare;
+    private BigDecimal estimatedFareAtRequest;
+    private BigDecimal fullJourneyFare;
+    private Integer seatsOffered;
 
     public RideRequestUpdatesDTO(
         Long rideId,
@@ -40,6 +44,10 @@ public class RideRequestUpdatesDTO {
         String passengerDestinationLocation,
         Integer requestedSeats,
         BigDecimal estimatedFare,
+        BigDecimal finalFare,
+        BigDecimal estimatedFareAtRequest,
+        BigDecimal fullJourneyFare,
+        Integer seatsOffered,
         RideStatus rideStatus,
         Boolean isDriverReachedPickupLocation,
         Integer rejectionCount,
@@ -54,6 +62,10 @@ public class RideRequestUpdatesDTO {
         this.passengerDestinationLocation = passengerDestinationLocation;
         this.requestedSeats = requestedSeats;
         this.estimatedFare = estimatedFare;
+        this.finalFare = finalFare;
+        this.estimatedFareAtRequest = estimatedFareAtRequest;
+        this.fullJourneyFare = fullJourneyFare;
+        this.seatsOffered = seatsOffered;
         this.rideStatus = rideStatus.name();
         this.isDriverReachedPickupLocation = isDriverReachedPickupLocation;
         this.rejectionCount = rejectionCount;

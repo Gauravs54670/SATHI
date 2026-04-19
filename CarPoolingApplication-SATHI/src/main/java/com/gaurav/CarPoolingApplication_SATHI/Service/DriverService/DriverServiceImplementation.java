@@ -23,6 +23,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingReques
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCacheDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
@@ -58,6 +59,8 @@ public class DriverServiceImplementation implements DriverService {
     // Constants
     private static final double EARTH_RADIUS_KM = 6371.0;
     private static final BigDecimal systemCommissionRate = BigDecimal.valueOf(0.1);
+    // distance threshold (in km) — if actual vs estimated difference >= this, use actual distance for billing
+    private static final BigDecimal DISTANCE_THRESHOLD_KM = BigDecimal.valueOf(0.5);
     // Redis key prefix for user profiles
     private static final String DRIVER_PROFILE_CACHE_PREFIX = "driver:profile:";
     // Cache TTL (time-to-live) in minutes
@@ -74,7 +77,7 @@ public class DriverServiceImplementation implements DriverService {
     private static final String RIDE_ACCEPTED_DRIVERS_CACHE_KEY = "ride:accepted:drivers";
     // real time ride update gps cache keys
     private static final String RIDE_GPS_UPDATES_CACHE_KEY = "ride:gps:updates:";
-    private static final long RIDE_GPS_UPDATES_CACHE_TTL_MINUTES = 5;
+    private static final long RIDE_GPS_UPDATES_CACHE_TTL_MINUTES = 10;
     // storing driver id and ride id so that db don't get overloaded
     private static final String DRIVER_ID_CACHE_KEY = "driver:id:";
     private static final long DRIVER_ID_CACHE_TTL_MINUTES = 30;
@@ -779,7 +782,38 @@ public class DriverServiceImplementation implements DriverService {
             throw new InvalidRideStateException("Tracking is only available for rides in progress.");
         }
 
+        // Distance Accumulator: Calculate incremental distance from the previous GPS point
         String rideGPSUpdatesCacheKey = RIDE_GPS_UPDATES_CACHE_KEY + ":" + rideGPSUpdatesDTO.getRideId();
+        Object previousGPSObj = this.redisTemplate.opsForValue().get(rideGPSUpdatesCacheKey);
+        double previousTotalDistance = 0.0;
+
+        if (previousGPSObj instanceof RideGPSUpdatesDTO previousGPS) {
+            if (previousGPS.getLatitude() != null && previousGPS.getLongitude() != null) {
+                double incrementalDistance = calculateDistanceByHaverSineFormula(
+                    previousGPS.getLatitude(), previousGPS.getLongitude(),
+                    rideGPSUpdatesDTO.getLatitude(), rideGPSUpdatesDTO.getLongitude()
+                );
+                previousTotalDistance = (previousGPS.getTotalDistanceTraveled() != null)
+                    ? previousGPS.getTotalDistanceTraveled() : 0.0;
+                previousTotalDistance += incrementalDistance;
+            }
+        } else if (previousGPSObj instanceof java.util.Map) {
+            // Robust fallback for Jackson deserialization into Map
+            java.util.Map<?, ?> map = (java.util.Map<?, ?>) previousGPSObj;
+            Double prevLat = map.get("latitude") != null ? ((Number) map.get("latitude")).doubleValue() : null;
+            Double prevLng = map.get("longitude") != null ? ((Number) map.get("longitude")).doubleValue() : null;
+            if (prevLat != null && prevLng != null) {
+                double incrementalDistance = calculateDistanceByHaverSineFormula(
+                    prevLat, prevLng,
+                    rideGPSUpdatesDTO.getLatitude(), rideGPSUpdatesDTO.getLongitude()
+                );
+                previousTotalDistance = map.get("totalDistanceTraveled") != null
+                    ? ((Number) map.get("totalDistanceTraveled")).doubleValue() : 0.0;
+                previousTotalDistance += incrementalDistance;
+            }
+        }
+
+        rideGPSUpdatesDTO.setTotalDistanceTraveled(previousTotalDistance);
         this.redisTemplate.opsForValue().set(rideGPSUpdatesCacheKey, rideGPSUpdatesDTO, RIDE_GPS_UPDATES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
     }
     // reached passenger pickup
@@ -890,6 +924,155 @@ public class DriverServiceImplementation implements DriverService {
             
         this.rideEntityRepository.save(rideEntity);
         this.passengerRideRequestRepository.save(rideRequestEntity);
+    }
+    // complete ride
+    @Override
+    @Transactional
+    public RideCompletedDTO completeRide(String email, Long rideId) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        RideEntity rideEntity = this.rideEntityRepository
+            .findByRideIdAndDriverProfileEntity_DriverProfileId(rideId, driverProfile.getDriverProfileId())
+            .orElseThrow(() -> new NoEntryFoundException("No ride found."));
+        if (rideEntity.getRideStatus() == RideStatus.RIDE_COMPLETED)
+            throw new InvalidRideStateException("This ride " + rideId + " is already marked as completed.");
+        if (rideEntity.getRideStatus() != RideStatus.RIDE_IN_PROGRESS)
+            throw new InvalidRideStateException("Only IN_PROGRESS rides can be marked as completed.");
+
+        // Determine actual distance from GPS accumulator
+        BigDecimal estimatedDistance = rideEntity.getEstimatedDistanceOfRide();
+        BigDecimal actualDistance = estimatedDistance; // default fallback
+        String rideGPSCacheKey = RIDE_GPS_UPDATES_CACHE_KEY + ":" + rideId;
+        Object gpsObj = this.redisTemplate.opsForValue().get(rideGPSCacheKey);
+
+        if (gpsObj instanceof RideGPSUpdatesDTO gpsDTO) {
+            if (gpsDTO.getTotalDistanceTraveled() != null && gpsDTO.getTotalDistanceTraveled() > 0) {
+                actualDistance = BigDecimal.valueOf(gpsDTO.getTotalDistanceTraveled())
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            }
+        } else if (gpsObj instanceof java.util.Map) {
+            java.util.Map<?, ?> map = (java.util.Map<?, ?>) gpsObj;
+            if (map.get("totalDistanceTraveled") != null) {
+                double totalDist = ((Number) map.get("totalDistanceTraveled")).doubleValue();
+                if (totalDist > 0) {
+                    actualDistance = BigDecimal.valueOf(totalDist)
+                        .setScale(2, java.math.RoundingMode.HALF_UP);
+                }
+            }
+        }
+        // else: GPS data expired or never recorded — fallback to estimatedDistance
+        log.info("Ride {}: Estimated Distance = {} km, Actual GPS Distance = {} km", rideId, estimatedDistance, actualDistance);
+
+        // Determine billing distance using 0.5 km threshold
+        BigDecimal distanceDifference = actualDistance.subtract(estimatedDistance).abs();
+        BigDecimal billingDistance;
+        if (distanceDifference.compareTo(DISTANCE_THRESHOLD_KM) >= 0) {
+            billingDistance = actualDistance;
+            log.info("Ride {}: Distance difference {} km >= threshold. Using ACTUAL distance for billing.", rideId, distanceDifference);
+        } else {
+            billingDistance = estimatedDistance;
+            log.info("Ride {}: Distance difference {} km < threshold. Using ESTIMATED distance for billing.", rideId, distanceDifference);
+        }
+
+        // Calculate total ride fare
+        BigDecimal fareFromDistance = billingDistance.multiply(rideEntity.getPricePerKm());
+        BigDecimal totalRideFare = rideEntity.getBaseFare().add(fareFromDistance)
+            .setScale(2, java.math.RoundingMode.HALF_UP);
+
+        // Fetch all ONBOARDED passengers (NOT_BOARDED are excluded — they are not charged)
+        List<PassengerRideRequestEntity> onboardedPassengers = this.passengerRideRequestRepository
+            .findByRideEntity_RideIdAndRideRequestStatus(rideId, RideRequestStatus.ONBOARDED);
+
+        int totalOccupiedSeats = onboardedPassengers.stream()
+            .mapToInt(PassengerRideRequestEntity::getRequestedSeats)
+            .sum();
+        int totalPassengersCompleted = onboardedPassengers.size();
+
+        // Split fare across ALL offered seats (ride-sharing model: driver absorbs empty seat cost)
+        int originalOfferedForSharing = totalOccupiedSeats + rideEntity.getTotalAvailableSeats();
+        BigDecimal farePerSeat = BigDecimal.ZERO;
+        if (originalOfferedForSharing > 0) {
+            farePerSeat = totalRideFare.divide(
+                BigDecimal.valueOf(originalOfferedForSharing), 2, java.math.RoundingMode.HALF_UP);
+        }
+
+        // Revenue = only what passengers actually pay (farePerSeat × occupied seats)
+        BigDecimal collectedRevenue = farePerSeat.multiply(BigDecimal.valueOf(totalOccupiedSeats))
+            .setScale(2, java.math.RoundingMode.HALF_UP);
+
+        // Commission and earnings are based on collected revenue, not total ride cost
+        BigDecimal systemCommission = collectedRevenue.multiply(systemCommissionRate)
+            .setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal driverEarning = collectedRevenue.subtract(systemCommission)
+            .setScale(2, java.math.RoundingMode.HALF_UP);
+
+        for (PassengerRideRequestEntity passenger : onboardedPassengers) {
+            BigDecimal passengerFare = farePerSeat.multiply(BigDecimal.valueOf(passenger.getRequestedSeats()))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+            passenger.setFinalFare(passengerFare);
+            passenger.setFullJourneyFare(totalRideFare);
+            passenger.setTotalSeatsOffered(originalOfferedForSharing);
+            passenger.setRideRequestStatus(RideRequestStatus.COMPLETED);
+            passenger.setRideCompletedAt(LocalDateTime.now());
+            this.passengerRideRequestRepository.save(passenger);
+
+            // Notify each passenger with their individual fare
+            notificationService.createNotification(
+                passenger.getPassengerEntity(),
+                String.format("Your ride with %s is complete! Distance: %.1f km. Your fare: ₹%.2f. Thank you for riding with SATHI!",
+                    user.getUserFullName(), billingDistance.doubleValue(), passengerFare.doubleValue()),
+                NotificationType.RIDE_COMPLETED,
+                passenger.getRideRequestId());
+
+            // Invalidate Passenger's Update List cache
+            String passengerEmail = passenger.getPassengerEntity().getEmail();
+            this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
+        }
+
+        // Update the RideEntity with final financial data
+        rideEntity.setRideStatus(RideStatus.RIDE_COMPLETED);
+        rideEntity.setRideCompletiontime(LocalDateTime.now());
+        rideEntity.setActualDistanceOfRide(actualDistance);
+        rideEntity.setActualFare(collectedRevenue);
+        rideEntity.setSystemCommission(systemCommission);
+        rideEntity.setTotalDriverShare(driverEarning);
+        this.rideEntityRepository.save(rideEntity);
+
+        // Full cache invalidation
+        this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
+        this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
+        this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId + ":unified");
+        this.redisTemplate.delete(rideGPSCacheKey);
+        this.redisTemplate.delete(RIDE_ENTITY_CACHE_KEY + ":" + rideId);
+        this.redisTemplate.delete(DRIVER_ACCEPTED_RIDES_REQUESTS_CACHE_PREFIX + user.getUserId() + ":" + rideId + ":unified");
+        java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
+        if (availableRideKeys != null && !availableRideKeys.isEmpty())
+            this.redisTemplate.delete(availableRideKeys);
+
+        log.info("Ride {} completed. Total Ride Cost: ₹{}, Collected Revenue: ₹{}, Fare/Seat: ₹{}, Driver Earning: ₹{}, Commission: ₹{}, Seats Offered: {}, Occupied Seats: {}, Passengers: {}",
+            rideId, totalRideFare, collectedRevenue, farePerSeat, driverEarning, systemCommission, originalOfferedForSharing, totalOccupiedSeats, totalPassengersCompleted);
+
+        // Return summary DTO
+        return RideCompletedDTO.builder()
+            .rideId(rideId)
+            .rideStatus(RideStatus.RIDE_COMPLETED.name())
+            .totalRideFare(collectedRevenue)
+            .rideFarePerPassenger(farePerSeat)
+            .systemCommission(systemCommission)
+            .driverEarning(driverEarning)
+            .estimatedDistance(estimatedDistance)
+            .actualDistance(actualDistance)
+            .billingDistance(billingDistance)
+            .totalPassengersCompleted(totalPassengersCompleted)
+            .totalSeatsOccupied(totalOccupiedSeats)
+            .fullJourneyCost(totalRideFare)
+            .totalSeatsOffered(originalOfferedForSharing)
+            .message(String.format("Ride completed. Fare split across %d offered seats (₹%.2f/seat). %d seat(s) booked. Billing based on %s distance.",
+                originalOfferedForSharing, farePerSeat, totalOccupiedSeats,
+                distanceDifference.compareTo(DISTANCE_THRESHOLD_KM) >= 0 ? "actual GPS" : "estimated"))
+            .build();
     }
     // helper methods
     private RideCacheDTO mapToRideCacheDTO(RideEntity rideEntity) {

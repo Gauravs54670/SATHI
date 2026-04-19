@@ -3,6 +3,7 @@ package com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService;
 import java.util.List;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
@@ -15,4 +16,6 @@ public interface PassengerService {
     void cancelRideRequest(String email, Long rideRequestId);
     List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId);
     String getOtp(String email, Long rideRequestId);
+    PassengerRideReceiptDTO getRideReceipt(String email, Long rideRequestId);
+    
 }

@@ -1,4 +1,5 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
@@ -122,6 +124,7 @@ public class PassengerServiceImplementation implements PassengerService {
         return availableRides;
     }
     // request ride
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public RideSharingResponseToPostedRide requestRide(String email, RideSharingRequestToPostedRide rideSharingRequestToPostedRide) {
@@ -197,7 +200,7 @@ public class PassengerServiceImplementation implements PassengerService {
         //    - If no existing request → create new
         Optional<PassengerRideRequestEntity> existingRequestOpt = this.passengerRideRequestRepository
             .findByPassengerEntity_UserIdAndRideEntity_RideId(user.getUserId(), rideEntity.getRideId());
-        PassengerRideRequestEntity passengerRideRequestEntity;
+        PassengerRideRequestEntity passengerRideRequestEntity = null;
         if (existingRequestOpt.isPresent()) {
             PassengerRideRequestEntity existingReq = existingRequestOpt.get();
             RideRequestStatus currentStatus = existingReq.getRideRequestStatus();
@@ -265,8 +268,16 @@ public class PassengerServiceImplementation implements PassengerService {
                 log.warn("Passenger {} has unexpected status {} for ride {}", email, currentStatus, rideEntity.getRideId());
                 throw new InvalidRideStateException("Cannot request this ride. Current request status: " + currentStatus);
             }
-        } else {
-            // 6. CREATE NEW RIDE REQUEST
+            // Calculate current estimated share
+            int currentSharingOffering = rideEntity.getTotalAvailableSeats() + 
+                this.passengerRideRequestRepository.countOnboardedSeatsForRide(rideEntity.getRideId());
+            BigDecimal estimatedShare = BigDecimal.ZERO;
+            if (currentSharingOffering > 0) {
+                estimatedShare = rideEntity.getEstimatedFare().divide(
+                    BigDecimal.valueOf(currentSharingOffering), 2, java.math.RoundingMode.HALF_UP);
+            }
+
+            // CREATE NEW RIDE REQUEST
             passengerRideRequestEntity = PassengerRideRequestEntity.builder()
                 .rideEntity(rideEntity)
                 .passengerEntity(user)
@@ -279,6 +290,7 @@ public class PassengerServiceImplementation implements PassengerService {
                 .passengerDestinationLocation(rideSharingRequestToPostedRide.getPassengerDestinationLocation())
                 .rideRequestStatus(RideRequestStatus.PENDING)
                 .rideRequestedAt(LocalDateTime.now())
+                .estimatedFareAtRequest(estimatedShare)
                 .build();
             log.info("New ride request created by passenger {} for ride {}", email, rideEntity.getRideId());
             
@@ -444,6 +456,15 @@ public class PassengerServiceImplementation implements PassengerService {
         }
         this.redisTemplate.opsForValue().set(cacheKey, rideRequestEntity.getOtp(), OTP_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         return rideRequestEntity.getOtp();
+    }
+    
+    @Override
+    public PassengerRideReceiptDTO getRideReceipt(String email, Long rideRequestId) {
+        UserEntity user = this.userEntityRepository.findByEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("User not found."));
+        
+        return this.passengerRideRequestRepository.findRideReceiptByRequestIdAndPassengerId(rideRequestId, user.getUserId())
+            .orElseThrow(() -> new NoEntryFoundException("Receipt not found for this request."));
     }
     
     // helper methods

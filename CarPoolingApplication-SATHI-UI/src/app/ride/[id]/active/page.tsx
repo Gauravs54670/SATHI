@@ -8,7 +8,9 @@ import {
   notifyDriverReached, 
   verifyPassengerOtp, 
   cancelPickup,
-  cancelRide
+  cancelRide,
+  completeRide,
+  RideCompletedDTO
 } from "@/lib/api";
 import { startLiveTracking, stopLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
@@ -33,6 +35,8 @@ export default function ActiveRidePage() {
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [otpValue, setOtpValue] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [completedData, setCompletedData] = useState<RideCompletedDTO | null>(null);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   useEffect(() => {
     if (!rideIdNum) return;
@@ -76,7 +80,10 @@ export default function ActiveRidePage() {
       }
     }, 3000);
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      clearInterval(pollInterval);
+      stopLiveTracking();
+    };
   }, [rideIdNum, activePassenger]);
 
   const reloadPassengers = async () => {
@@ -169,6 +176,26 @@ export default function ActiveRidePage() {
       setTimeout(() => router.push('/dashboard'), 1500);
     } catch (err: any) {
       setToast({ message: err.message || "Failed to cancel ride", type: "ERROR", isVisible: true });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCompleteRide = async () => {
+    if (!confirm("Are you sure you want to complete this journey? All onboarded passengers will be charged based on the final distance.")) return;
+    try {
+      setIsProcessing(true);
+      const data = await completeRide(rideIdNum);
+      setCompletedData(data);
+      setIsSummaryModalOpen(true);
+      stopLiveTracking();
+      setToast({
+        message: "Journey completed successfully!",
+        type: "SUCCESS",
+        isVisible: true
+      });
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to complete ride", type: "ERROR", isVisible: true });
     } finally {
       setIsProcessing(false);
     }
@@ -372,6 +399,17 @@ export default function ActiveRidePage() {
               >
                  Exit to Dashboard
               </button>
+              
+              <button 
+                onClick={handleCompleteRide}
+                disabled={isProcessing}
+                className="w-full py-4 px-6 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                 </svg>
+                 Complete Journey
+              </button>
 
               <button 
                 onClick={handleAbortRide}
@@ -456,7 +494,98 @@ export default function ActiveRidePage() {
         isVisible={toast.isVisible}
         onClose={() => setToast({ ...toast, isVisible: false })}
       />
+
+      {/* Ride Summary Modal */}
+      {isSummaryModalOpen && completedData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          
+          <div className="relative w-full max-w-2xl glass-card border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500">
+            {/* Header */}
+            <div className="p-8 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent">
+               <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                     <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                     </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-white tracking-tight">Journey Summary</h2>
+                    <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-1">Successfully Completed</p>
+                  </div>
+               </div>
+            </div>
+
+            <div className="p-8 space-y-8">
+               {/* Financial Grid */}
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Journey Value</span>
+                     <span className="text-sm font-black text-slate-400 italic">₹{completedData.fullJourneyCost.toFixed(2)}</span>
+                  </div>
+                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center bg-white/[0.02]">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Revenue</span>
+                     <span className="text-lg font-black text-white">₹{completedData.totalRideFare.toFixed(2)}</span>
+                  </div>
+                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Commission</span>
+                     <span className="text-lg font-black text-rose-400">-₹{completedData.systemCommission.toFixed(2)}</span>
+                  </div>
+                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center border-b-2 border-b-emerald-500 bg-emerald-500/5">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Net Earning</span>
+                     <span className="text-2xl font-black text-emerald-400">₹{completedData.driverEarning.toFixed(2)}</span>
+                  </div>
+               </div>
+
+               {/* Distance & Sharing Stats */}
+               <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                    <span>Distance & Sharing Details</span>
+                    <div className="h-px flex-1 bg-white/5" />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Seats Offered / Occupied</span>
+                        <span className="text-white font-black">{completedData.totalSeatsOffered} / {completedData.totalSeatsOccupied}</span>
+                     </div>
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Fare Split per Seat</span>
+                        <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)}</span>
+                     </div>
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Estimated Distance</span>
+                        <span className="text-white font-black">{completedData.estimatedDistance.toFixed(1)} KM</span>
+                     </div>
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Actual GPS Distance</span>
+                        <span className="text-white font-black">{completedData.actualDistance.toFixed(1)} KM</span>
+                     </div>
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Billing Distance</span>
+                        <span className="text-emerald-400 font-black">{completedData.billingDistance.toFixed(1)} KM</span>
+                     </div>
+                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                        <span className="text-slate-400 font-bold">Fare per Passenger</span>
+                        <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)} / Seat</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 text-center">
+                  <p className="text-indigo-400 text-[10px] font-medium leading-relaxed">{completedData.message}</p>
+               </div>
+
+               <button 
+                onClick={() => router.push('/dashboard')}
+                className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all hover:bg-slate-200 active:scale-[0.98]"
+               >
+                 Return to Dashboard
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

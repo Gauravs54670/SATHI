@@ -217,4 +217,18 @@ public class DriverController {
             "message", "Pickup cancelled. Seat inventory restored."
         ), HttpStatus.OK);
     }
+
+    // complete ride
+    @PutMapping("/complete-ride")
+    public ResponseEntity<?> completeRide(Authentication authentication,
+            @RequestParam("rideId") Long rideId) {
+        String email = authentication.getName();
+        com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO result = 
+            this.driverService.completeRide(email, rideId);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", result.getMessage(),
+            "data", result
+        ), HttpStatus.OK);
+    }
 }

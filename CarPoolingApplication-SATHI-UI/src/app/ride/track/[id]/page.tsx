@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { fetchRideRequestUpdates, fetchRideAcceptedDrivers, fetchRideOtp, RideRequestUpdatesDTO, RideAcceptedDriverDTO, cancelRideRequest } from "@/lib/api";
+import { fetchRideRequestUpdates, fetchRideAcceptedDrivers, fetchRideOtp, fetchRideReceipt, RideRequestUpdatesDTO, RideAcceptedDriverDTO, PassengerRideReceiptDTO, cancelRideRequest } from "@/lib/api";
 import Toast, { ToastType } from "@/components/Toast";
 
 export default function PassengerTrackPage() {
@@ -13,6 +13,7 @@ export default function PassengerTrackPage() {
 
   const [request, setRequest] = useState<RideRequestUpdatesDTO | null>(null);
   const [driver, setDriver] = useState<RideAcceptedDriverDTO | null>(null);
+  const [receipt, setReceipt] = useState<PassengerRideReceiptDTO | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +64,12 @@ export default function PassengerTrackPage() {
         setOtp(null);
       }
 
-      // If ride is started or completed, redirect to appropriate view or show message
-      if (currentReq.rideStatus === 'RIDE_STARTED' || currentReq.rideStatus === 'RIDE_IN_PROGRESS') {
-        // Passenger is now on board
+      // If ride is completed, fetch receipt
+      if (currentReq.rideRequestStatus === 'COMPLETED' || currentReq.rideStatus === 'RIDE_COMPLETED') {
+        if (!receipt) {
+          const receiptData = await fetchRideReceipt(rideRequestId);
+          setReceipt(receiptData);
+        }
       }
 
     } catch (err: any) {
@@ -347,6 +351,81 @@ export default function PassengerTrackPage() {
         type={toast.type}
         onClose={() => setToast(t => ({ ...t, show: false }))}
       />
+
+      {/* Passenger Ride Summary Modal */}
+      {(request.rideRequestStatus === 'COMPLETED' || request.rideStatus === 'RIDE_COMPLETED') && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          
+          <div className="relative w-full max-w-lg glass-card border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500">
+            {/* Header */}
+            <div className="p-8 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent text-center">
+               <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 mx-auto mb-6">
+                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+               </div>
+               <h2 className="text-3xl font-black text-white tracking-tight italic">Journey Complete</h2>
+               <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-2">{driver?.driverName} dropped you off safely</p>
+            </div>
+
+            <div className="p-8 space-y-8">
+               {/* Financial Summary */}
+               <div className="glass-card p-8 border-white/5 bg-white/[0.02] flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Final Fare Paid</span>
+                  <span className="text-5xl font-black text-white italic drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">₹{(receipt?.finalFarePaid || request.finalFare || request.estimatedFare).toFixed(2)}</span>
+                  
+                  {/* Price Comparison / Breakdown */}
+                  <div className="mt-6 w-full space-y-3">
+                     {receipt?.estimatedFareAtRequest && (
+                        <div className="flex justify-between items-center px-4 py-2 bg-white/5 rounded-lg border border-white/10">
+                           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Initial Estimate</span>
+                           <span className="text-xs font-black text-slate-300 italic">₹{receipt.estimatedFareAtRequest.toFixed(2)}</span>
+                        </div>
+                     )}
+
+                     <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                           <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Transaction Successful</span>
+                        </div>
+                        <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase tracking-tighter">
+                           {receipt ? (
+                              <>
+                                 Split logic: ₹{receipt.fullJourneyFare.toFixed(2)} / {receipt.totalSeatsOffered} seats offered
+                              </>
+                           ) : (
+                              "Fare split based on total seats offered for sharing"
+                           )}
+                        </p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Trip Details Grid */}
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Distance</span>
+                     <p className="text-sm font-black text-white">{receipt?.billingDistance?.toFixed(1) || '—'} KM</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Time</span>
+                     <p className="text-sm font-black text-white">{new Date(receipt?.completionTime || request.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <button 
+                    onClick={() => router.push('/dashboard')}
+                    className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all hover:bg-slate-200 active:scale-[0.98] shadow-xl"
+                  >
+                    Return to Dashboard
+                  </button>
+                  <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest text-center opacity-60">Thank you for riding with SATHI!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
     </div>
   );
 }

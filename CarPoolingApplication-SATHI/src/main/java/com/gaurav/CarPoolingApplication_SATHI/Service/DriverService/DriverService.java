@@ -8,6 +8,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassenge
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
@@ -29,4 +30,5 @@ public interface DriverService {
     void reachedPassengerPickUp(String email, Long rideId, Long rideReqeustId);
     void verifyOtp(Long rideId, Long rideRequestId, String otp);
     void cancelPickup(String email, Long rideId, Long rideRequestId);
+    RideCompletedDTO completeRide(String email, Long rideId);
 }
