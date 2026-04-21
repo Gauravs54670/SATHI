@@ -10,7 +10,8 @@ import {
   cancelPickup,
   cancelRide,
   completeRide,
-  RideCompletedDTO
+  RideCompletedDTO,
+  ratePassenger
 } from "@/lib/api";
 import { startLiveTracking, stopLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
@@ -37,6 +38,7 @@ export default function ActiveRidePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedData, setCompletedData] = useState<RideCompletedDTO | null>(null);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [passengerRatings, setPassengerRatings] = useState<Record<number, { rating: number; comment: string; submitted: boolean; loading: boolean }>>({});
 
   useEffect(() => {
     if (!rideIdNum) return;
@@ -575,6 +577,68 @@ export default function ActiveRidePage() {
                <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 text-center">
                   <p className="text-indigo-400 text-[10px] font-medium leading-relaxed">{completedData.message}</p>
                </div>
+
+               {/* Rate Passengers Section */}
+               {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').length > 0 && (
+                 <div className="space-y-4">
+                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rate Your Passengers</p>
+                   {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').map((p) => {
+                     const state = passengerRatings[p.passengerRideRequestId] || { rating: 0, comment: '', submitted: false, loading: false };
+                     return (
+                       <div key={p.passengerRideRequestId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                         <div className="flex items-center gap-3">
+                           {p.passengerProfilePicture ? (
+                             <img src={p.passengerProfilePicture} className="w-8 h-8 rounded-lg object-cover" alt={p.passengerName} />
+                           ) : (
+                             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-black">{p.passengerName.charAt(0)}</div>
+                           )}
+                           <span className="text-sm font-bold text-white flex-1">{p.passengerName}</span>
+                           {state.submitted && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Rated ✓</span>}
+                         </div>
+                         {!state.submitted ? (
+                           <>
+                             <div className="flex justify-center gap-1.5">
+                               {[1, 2, 3, 4, 5].map((star) => (
+                                 <button key={star} onClick={() => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, rating: star } }))}
+                                   className={`w-8 h-8 rounded-lg transition-all active:scale-90 ${star <= state.rating ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30' : 'bg-white/5 text-slate-600 border border-white/10'}`}>
+                                   <svg className="w-4 h-4 mx-auto" fill={star <= state.rating ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                   </svg>
+                                 </button>
+                               ))}
+                             </div>
+                             <input type="text" value={state.comment} onChange={(e) => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, comment: e.target.value } }))}
+                               placeholder="Quick note (optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50" />
+                             <button onClick={async () => {
+                               if (state.rating === 0) return;
+                               setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: true } }));
+                               try {
+                                 await ratePassenger({ rideId: rideIdNum, rideRequestId: p.passengerRideRequestId, rating: state.rating, comment: state.comment || undefined });
+                                 setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, submitted: true, loading: false } }));
+                                 setToast({ message: `Rated ${p.passengerName} successfully!`, type: 'SUCCESS', isVisible: true });
+                               } catch (err: any) {
+                                 setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: false } }));
+                                 setToast({ message: err.message || 'Failed to rate', type: 'ERROR', isVisible: true });
+                               }
+                             }} disabled={state.rating === 0 || state.loading}
+                               className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all active:scale-[0.98]">
+                               {state.loading ? 'Submitting...' : 'Submit Rating'}
+                             </button>
+                           </>
+                         ) : (
+                           <div className="flex justify-center gap-1">
+                             {[1, 2, 3, 4, 5].map((star) => (
+                               <svg key={star} className={`w-4 h-4 ${star <= state.rating ? 'text-amber-500' : 'text-slate-700'}`} fill={star <= state.rating ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                               </svg>
+                             ))}
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })}
+                 </div>
+               )}
 
                <button 
                 onClick={() => router.push('/dashboard')}

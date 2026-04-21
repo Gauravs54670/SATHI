@@ -22,6 +22,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.DriverService.DriverService;
 
 import jakarta.validation.Valid;
@@ -229,6 +230,19 @@ public class DriverController {
             "status", "success",
             "message", result.getMessage(),
             "data", result
+        ), HttpStatus.OK);
+    }
+
+    // rate passenger
+    @PostMapping("/rate-passenger")
+    public ResponseEntity<?> ratePassenger(
+            Authentication authentication,
+            @Valid @RequestBody UserRateRequestDTO userRateRequestDTO) {
+        String email = authentication.getName();
+        String message = this.driverService.ratePassenger(email, userRateRequestDTO);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", message
         ), HttpStatus.OK);
     }
 }

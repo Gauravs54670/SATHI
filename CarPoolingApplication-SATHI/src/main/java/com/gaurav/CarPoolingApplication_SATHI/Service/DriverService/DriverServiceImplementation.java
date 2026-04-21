@@ -27,6 +27,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoEntryFoundException;
@@ -42,12 +43,14 @@ import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserAccountStatus;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
+import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRatingEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserRole;
 import com.gaurav.CarPoolingApplication_SATHI.Model.Notification.NotificationType;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.DriverEntityRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.PassengerRideRequestRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.RideEntityRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Repository.UserEntityRepository;
+import com.gaurav.CarPoolingApplication_SATHI.Repository.UserRatingRepository;
 import com.gaurav.CarPoolingApplication_SATHI.Service.Notification.NotificationService;
 
 import jakarta.transaction.Transactional;
@@ -89,7 +92,8 @@ public class DriverServiceImplementation implements DriverService {
 
     // Fixed Error 1: Passenger Update Cache Key (Matching PassengerServiceImplementation)
     private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
-
+    
+    private final UserRatingRepository userRatingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
@@ -97,12 +101,14 @@ public class DriverServiceImplementation implements DriverService {
     private final PassengerRideRequestRepository passengerRideRequestRepository;
     private final NotificationService notificationService;
     public DriverServiceImplementation(
+            UserRatingRepository userRatingRepository,
             PassengerRideRequestRepository passengerRideRequestRepository,
             UserEntityRepository userEntityRepository,
             RedisTemplate<String, Object> redisTemplate,
             DriverEntityRepository driverEntityRepository,
             RideEntityRepository rideEntityRepository,
             NotificationService notificationService) {
+        this.userRatingRepository = userRatingRepository;
         this.redisTemplate = redisTemplate;
         this.driverEntityRepository = driverEntityRepository;
         this.userEntityRepository = userEntityRepository;
@@ -1073,6 +1079,53 @@ public class DriverServiceImplementation implements DriverService {
                 originalOfferedForSharing, farePerSeat, totalOccupiedSeats,
                 distanceDifference.compareTo(DISTANCE_THRESHOLD_KM) >= 0 ? "actual GPS" : "estimated"))
             .build();
+    }
+    // rate passenger
+    @Transactional
+    @Override
+    public String ratePassenger(String email, UserRateRequestDTO userRateRequestDTO){
+        if (userRateRequestDTO.getRating() < 1 || userRateRequestDTO.getRating() > 5) 
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
+        DriverProfileEntity driverProfileEntity = this.driverEntityRepository
+            .findByUserEmail(email)
+            .orElseThrow(() -> new NoEntryFoundException("Driver not found"));
+        validateUserAccount(driverProfileEntity.getUser());
+        Optional<UserRatingEntity> existingRating = this.userRatingRepository
+            .findByRideEntity_RideIdAndRideRequestEntity_RideRequestId(
+                userRateRequestDTO.getRideId(), userRateRequestDTO.getRideRequestId());
+        if(existingRating.isPresent())
+            throw new IllegalArgumentException("Passenger already rated");
+        RideEntity rideEntity = this.rideEntityRepository.findByRideIdAndDriverProfileEntity_DriverProfileId(
+            userRateRequestDTO.getRideId(), driverProfileEntity.getDriverProfileId())
+            .orElseThrow(() -> new NoEntryFoundException("Ride not found"));
+        if(rideEntity.getRideStatus() != RideStatus.RIDE_COMPLETED)
+            throw new IllegalArgumentException("Ride is not completed. Cannot rate passenger.");
+        PassengerRideRequestEntity passengerRideRequestEntity = this.passengerRideRequestRepository.findByRideEntity_RideIdAndRideRequestId(
+            rideEntity.getRideId(), userRateRequestDTO.getRideRequestId())
+            .orElseThrow(() -> new NoEntryFoundException("Passenger ride request not found"));
+        if(passengerRideRequestEntity.getRideRequestStatus() != RideRequestStatus.COMPLETED)
+            throw new IllegalArgumentException("Passenger ride request is not completed. Cannot rate passenger.");
+        UserRatingEntity ratingEntity = UserRatingEntity.builder()
+            .ratedBy(driverProfileEntity.getUser())
+            .ratedUser(passengerRideRequestEntity.getPassengerEntity())
+            .rating(userRateRequestDTO.getRating())
+            .review(userRateRequestDTO.getComment())
+            .rideEntity(rideEntity)
+            .rideRequestEntity(passengerRideRequestEntity)
+            .ratedAt(LocalDateTime.now())
+            .build();
+        UserEntity passenger = this.userEntityRepository.findWithPessimisticLockById(passengerRideRequestEntity.getPassengerEntity().getUserId())
+            .orElseThrow(() -> new UserNotFoundException("Passenger user not found."));
+            
+        passenger.setAverageRating(
+            (passenger.getAverageRating() * passenger.getTotalRatingsCount() + userRateRequestDTO.getRating())
+            / (passenger.getTotalRatingsCount() + 1));
+        passenger.setTotalRatingsCount(passenger.getTotalRatingsCount() + 1);
+        
+        this.userRatingRepository.save(ratingEntity);
+        this.userEntityRepository.save(passenger);
+        this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passenger.getEmail());
+        return "Passenger rated successfully";
     }
     // helper methods
     private RideCacheDTO mapToRideCacheDTO(RideEntity rideEntity) {

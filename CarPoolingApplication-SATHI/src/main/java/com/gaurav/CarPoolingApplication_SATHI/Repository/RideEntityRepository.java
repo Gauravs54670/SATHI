@@ -7,9 +7,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import jakarta.persistence.LockModeType;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.AvailablePostedRideDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
@@ -165,4 +168,8 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         AND r.rideStatus IN ('RIDE_IN_PROGRESS')
     """)
     boolean existsInProgressRide(@Param("driverProfileId") Long driverProfileId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM RideEntity r WHERE r.rideId = :id")
+    Optional<RideEntity> findWithPessimisticLockById(@Param("id") Long id);
 }

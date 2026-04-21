@@ -813,3 +813,36 @@ export async function deleteNotification(id: number) {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to delete notification");
   return data.message;
 }
+
+// ─── Rating APIs ────────────────────────
+
+export interface UserRateRequestPayload {
+  rideId: number;
+  rideRequestId: number;
+  rating: number;
+  comment?: string;
+}
+
+export async function rateDriver(payload: UserRateRequestPayload) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/rate-driver`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to rate driver");
+  return data.message as string;
+}
+
+export async function ratePassenger(payload: UserRateRequestPayload) {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/rate-passenger`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to rate passenger");
+  return data.message as string;
+}

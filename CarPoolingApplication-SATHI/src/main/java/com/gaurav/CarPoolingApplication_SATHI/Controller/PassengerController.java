@@ -19,7 +19,10 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideAcceptedDrive
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingRequestToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingResponseToPostedRide;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService.PassengerService;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/passenger")
@@ -108,6 +111,18 @@ public class PassengerController {
             "status", "success",
             "message", "Ride receipt fetched successfully",
             "data", receipt
+        ), HttpStatus.OK);
+    }
+
+    @PostMapping("/rate-driver")
+    public ResponseEntity<?> rateDriver(
+            Authentication authentication,
+            @Valid @RequestBody UserRateRequestDTO userRateRequestDTO) {
+        String email = authentication.getName();
+        String message = this.passengerService.rateDriver(email, userRateRequestDTO);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", message
         ), HttpStatus.OK);
     }
 }

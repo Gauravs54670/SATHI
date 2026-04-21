@@ -8,6 +8,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideAcceptedDrive
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingRequestToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingResponseToPostedRide;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 
 public interface PassengerService {
     List<AvailablePostedRideDTO> getAvailableRides(String email, String city, Double sLat, Double sLng, Double dLat, Double dLng);
@@ -17,5 +18,5 @@ public interface PassengerService {
     List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId);
     String getOtp(String email, Long rideRequestId);
     PassengerRideReceiptDTO getRideReceipt(String email, Long rideRequestId);
-    
+    String rateDriver(String email, UserRateRequestDTO userRateRequestDTO);
 }

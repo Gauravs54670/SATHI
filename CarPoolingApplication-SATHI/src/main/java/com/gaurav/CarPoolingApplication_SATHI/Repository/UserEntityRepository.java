@@ -3,14 +3,22 @@ package com.gaurav.CarPoolingApplication_SATHI.Repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.UserEntity.UserEntity;
+
+import jakarta.persistence.LockModeType;
 @Repository
 public interface UserEntityRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findByEmail(String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserEntity u WHERE u.userId = :id")
+    Optional<UserEntity> findWithPessimisticLockById(Long id);
+
     Optional<UserEntity> findByPhoneNumber(String phoneNumber);
     Optional<UserEntity> findByEmailAndPhoneNumber(String email, String phoneNumber);
     @Query("""

@@ -205,4 +205,5 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
         AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED
         """)
     int countOnboardedSeatsForRide(Long rideId);
+    Optional<PassengerRideRequestEntity> findByRideRequestIdAndPassengerEntity_UserId(Long rideRequestId, Long userId);
 }

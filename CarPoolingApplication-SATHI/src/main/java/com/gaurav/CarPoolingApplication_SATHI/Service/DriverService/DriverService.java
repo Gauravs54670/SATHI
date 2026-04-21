@@ -12,6 +12,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 @Service
 public interface DriverService {
     DriverProfileDTO getDriverProfile(String email);
@@ -31,4 +32,5 @@ public interface DriverService {
     void verifyOtp(Long rideId, Long rideRequestId, String otp);
     void cancelPickup(String email, Long rideId, Long rideRequestId);
     RideCompletedDTO completeRide(String email, Long rideId);
+    String ratePassenger(String email, UserRateRequestDTO userRateRequestDTO);
 }

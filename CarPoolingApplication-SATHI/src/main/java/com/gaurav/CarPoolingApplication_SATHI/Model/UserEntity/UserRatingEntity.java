@@ -5,11 +5,15 @@ import java.time.LocalDateTime;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideEntity;
 
+import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,10 +24,12 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
+@Entity
+@Table(name = "user_ratings")
 public class UserRatingEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long rateingId;
+    private Long ratingId;
     @ManyToOne
     @JoinColumn(name = "rated_user_id")
     private UserEntity ratedUser;
@@ -32,9 +38,12 @@ public class UserRatingEntity {
     private UserEntity ratedBy;
     @ManyToOne
     private RideEntity rideEntity;
+    @ManyToOne
     @JoinColumn(name = "ride_request_id")
     private PassengerRideRequestEntity rideRequestEntity;
-    private Integer rateing;
+    @Min(value = 1, message = "Rating must be at least 1")
+    @Max(value = 5, message = "Rating must be at most 5")
+    private Integer rating;
     private String review;
     private LocalDateTime ratedAt;
 }
