@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingRequestToPostedRide;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideSharingResponseToPostedRide;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.AvailablePostedRideDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.PassengerRideReceiptDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideAcceptedDriverDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdatesDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingRequestToPostedRide;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingResponseToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoEntryFoundException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.TooManyRequestException;
