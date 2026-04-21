@@ -1123,13 +1123,13 @@ public class DriverServiceImplementation implements DriverService {
             return Enum.valueOf(enumClass, value.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             String allowed = Arrays.stream(enumClass.getEnumConstants())
-                    .map(Enum::name)
-                    .collect(Collectors.joining(", "));
+            .map(Enum::name)
+            .collect(Collectors.joining(", "));
             throw new IllegalArgumentException(
-                    "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
+                "Invalid " + enumClass.getSimpleName() + ". Allowed: " + allowed);
+            }
         }
-    }
-
+        
     // validate User's account
     private void validateUserAccount(UserEntity user) {
         if (!user.getIsEmailVerified()) {
@@ -1150,4 +1150,5 @@ public class DriverServiceImplementation implements DriverService {
         SecureRandom random = new SecureRandom();
         return String.format("%04d", random.nextInt(10000));
     }
+
 }
