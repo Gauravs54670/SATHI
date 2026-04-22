@@ -372,6 +372,49 @@ export default function DashboardPage() {
                 </button>
               </div>
 
+              {/* History Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
+                {/* Passenger History Card */}
+                <button 
+                  onClick={() => router.push('/history/passenger')}
+                  className="glass-card p-6 text-left border-white/5 hover:border-indigo-500/30 transition-all duration-300 hover:-translate-y-1 group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition-all">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white">Passenger History</p>
+                      <p className="text-slate-400 text-xs font-medium">Past ride requests and outcomes</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Driver History Card */}
+                <button 
+                  onClick={() => {
+                    if (isDriver) {
+                      router.push('/history/driver');
+                    } else {
+                      setToast({ message: "You don't have the role for driver yet please register as driver first", type: "ERROR", isVisible: true });
+                    }
+                  }}
+                  className="glass-card p-6 text-left border-white/5 hover:border-emerald-500/30 transition-all duration-300 hover:-translate-y-1 group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-white">Driver History</p>
+                      <p className="text-slate-400 text-xs font-medium">Completed rides and earnings history</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
               {/* My Pending/Accepted Bookings - NEW SECTION */}
               {passengerRequests.length > 0 && (
                 <div className="mt-12 animate-fade-in-up">

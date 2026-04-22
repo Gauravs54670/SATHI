@@ -846,3 +846,56 @@ export async function ratePassenger(payload: UserRateRequestPayload) {
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to rate passenger");
   return data.message as string;
 }
+
+// ─── History APIs ────────────────────────
+
+export interface PassengerRideHistoryDTO {
+  rideId: number;
+  rideRequestId: number;
+  driverName: string;
+  requestedSeats: number;
+  boardingLocation: string;
+  dropOffLocation: string;
+}
+
+export interface RideJoinedPassengersDTO {
+  rideId: number;
+  rideRequestId: number;
+  passengerName: string;
+  requestedSeats: number;
+  passengerSourceLocation: string;
+  passengerDestinationLocation: string;
+}
+
+export interface DriverRideHistoryDTO {
+  rideId: number;
+  rideDate: string;
+  rideStartedAt: string;
+  rideEndedAt: string;
+  totalPassengersCount: number;
+  distanceCovered: number;
+  rideEarning: number;
+  rideStartingAddress: string;
+  rideEndedAddress: string;
+  joinedPassengers: RideJoinedPassengersDTO[];
+}
+
+export async function fetchPassengerRideHistory() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/passenger/ride-history`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch passenger history");
+  return data.data as PassengerRideHistoryDTO[];
+}
+
+export async function fetchDriverRideHistory() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/ride-history`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch driver history");
+  return data.data as DriverRideHistoryDTO[];
+}

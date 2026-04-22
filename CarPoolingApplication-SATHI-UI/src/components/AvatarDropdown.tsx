@@ -4,6 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { fetchUserRoles } from "@/lib/api";
+import Toast from "./Toast";
 
 interface AvatarDropdownProps {
   isOpen: boolean;
@@ -15,6 +16,11 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isDriver, setIsDriver] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "INFO",
+    isVisible: false
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +96,47 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
         </button>
       )}
       <div className="border-t border-white/5 my-1" />
+      
+      {/* Ride History Options */}
+      <button
+        onClick={() => {
+          router.push("/history/passenger");
+          onClose();
+        }}
+        className="w-full text-left px-4 py-2.5 text-sm text-slate-200
+          hover:bg-white/5 transition-colors flex items-center gap-2"
+      >
+        <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Passenger History
+      </button>
+
+      <button
+        onClick={() => {
+          if (isDriver) {
+            router.push("/history/driver");
+            onClose();
+          } else {
+            setToast({
+              message: "You don't have the role for driver yet please register as driver first",
+              type: "ERROR",
+              isVisible: true
+            });
+          }
+        }}
+        className="w-full text-left px-4 py-2.5 text-sm text-slate-200
+          hover:bg-white/5 transition-colors flex items-center gap-2"
+      >
+        <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Driver History
+      </button>
+
+      <div className="border-t border-white/5 my-1" />
       <button
         onClick={async () => {
           await logout();
@@ -105,6 +152,13 @@ export default function AvatarDropdown({ isOpen, onClose }: AvatarDropdownProps)
         </svg>
         Logout
       </button>
+      
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   );
 }

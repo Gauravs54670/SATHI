@@ -6,12 +6,26 @@ import { useAuth } from "@/context/AuthContext";
 import Avatar from "./Avatar";
 import AvatarDropdown from "./AvatarDropdown";
 import NotificationBell from "./NotificationBell";
+import { fetchUserRoles } from "@/lib/api";
+import Toast from "./Toast";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, isLoggedIn } = useAuth();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isDriver, setIsDriver] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "INFO",
+    isVisible: false
+  });
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchUserRoles().then(roles => setIsDriver(roles.includes("DRIVER"))).catch(() => setIsDriver(false));
+    }
+  }, [isLoggedIn]);
 
   // Close mobile menu on navigation
   const navigate = (path: string) => {
@@ -130,6 +144,29 @@ export default function Navbar() {
             >
               My Ride Requests
             </button>
+            <div className="border-t border-white/5 my-2" />
+            <button 
+              onClick={() => navigate("/history/passenger")}
+              className="w-full text-left px-4 py-3 rounded-xl bg-white/5 text-sm font-bold text-slate-400 hover:text-white transition-all uppercase tracking-widest"
+            >
+              Passenger History
+            </button>
+            <button 
+              onClick={() => {
+                if (isDriver) {
+                  navigate("/history/driver");
+                } else {
+                  setToast({
+                    message: "You don't have the role for driver yet please register as driver first",
+                    type: "ERROR",
+                    isVisible: true
+                  });
+                }
+              }}
+              className="w-full text-left px-4 py-3 rounded-xl bg-white/5 text-sm font-bold text-slate-400 hover:text-white transition-all uppercase tracking-widest"
+            >
+              Driver History
+            </button>
             {!isLoggedIn && (
                <button
                   onClick={() => navigate("/signin")}
@@ -141,6 +178,12 @@ export default function Navbar() {
           </div>
         </div>
       )}
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </nav>
   );
 }
