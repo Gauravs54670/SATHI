@@ -18,6 +18,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverRideHistoryDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
@@ -243,6 +244,18 @@ public class DriverController {
         return new ResponseEntity<>(Map.of(
             "status", "success",
             "message", message
+        ), HttpStatus.OK);
+    }
+
+    // get driver ride history
+    @GetMapping("/ride-history")
+    public ResponseEntity<?> getRideHistory(Authentication authentication) {
+        String email = authentication.getName();
+        List<DriverRideHistoryDTO> history = this.driverService.driverRideHistoryDTO(email);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Driver ride history fetched successfully",
+            "data", history
         ), HttpStatus.OK);
     }
 }

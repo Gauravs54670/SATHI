@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.PassengerRideHistoryDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -243,4 +244,18 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
         List<RideJoinedPassengersDTO> findRideJoinedPassengersBulk(
                 @Param("rideIds") List<Long> rideIds,
                 @Param("driverProfileId") Long driverProfileId);
+    @Query("""
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.PassengerRideHistoryDTO(
+                prr.rideEntity.rideId,
+                prr.rideRequestId,
+                prr.rideEntity.driverProfileEntity.user.userFullName,
+                prr.requestedSeats,
+                prr.passengerSourceLocation,
+                prr.passengerDestinationLocation
+            )
+            FROM PassengerRideRequestEntity prr
+            WHERE prr.passengerEntity.userId = :userId
+            AND prr.rideRequestStatus IN ('REJECTED', 'COMPLETED')
+            """)
+    List<PassengerRideHistoryDTO> getPassengerRideHistoryDTO(@Param("userId") Long userId);
 }

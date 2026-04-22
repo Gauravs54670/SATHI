@@ -5,13 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c0cf1fe2-07ef-41b6-a79f-3dd949f8cee1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/DTO/RideDTO/DriverRideHistoryDTO.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/DTO/RideDTO/PassengerRideHistoryDTO.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/DTO/RideDTO/RideJoinedPassengersDTO.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/DTO/RideDTO/PassengerRideHistoryDTO.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/DTO/RideDTO/PassengerRideHistoryDTO.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/PassengerRideRequestRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/PassengerRideRequestRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/RideEntityRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/RideEntityRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverService.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverServiceImplementation.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverServiceImplementation.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

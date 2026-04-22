@@ -20,6 +20,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdate
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingRequestToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideSharingResponseToPostedRide;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.PassengerRideHistoryDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService.PassengerService;
 
 import jakarta.validation.Valid;
@@ -123,6 +124,18 @@ public class PassengerController {
         return new ResponseEntity<>(Map.of(
             "status", "success",
             "message", message
+        ), HttpStatus.OK);
+    }
+
+    // get passenger ride history
+    @GetMapping("/ride-history")
+    public ResponseEntity<?> getRideHistory(Authentication authentication) {
+        String email = authentication.getName();
+        List<PassengerRideHistoryDTO> history = this.passengerService.getPassengerRideHistory(email);
+        return new ResponseEntity<>(Map.of(
+            "status", "success",
+            "message", "Passenger ride history fetched successfully",
+            "data", history
         ), HttpStatus.OK);
     }
 }

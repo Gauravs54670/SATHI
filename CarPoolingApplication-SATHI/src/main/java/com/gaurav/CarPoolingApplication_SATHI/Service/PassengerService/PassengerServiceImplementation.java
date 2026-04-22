@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.PassengerRideHistoryDTO;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -530,6 +531,19 @@ public class PassengerServiceImplementation implements PassengerService {
         
         return "Rating given successfully.";
     }
+
+    @Override
+    public List<PassengerRideHistoryDTO> getPassengerRideHistory(String email) {
+        UserEntity passenger = this.userEntityRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
+        validatePassengerAccount(passenger);
+        List<PassengerRideHistoryDTO> passengerRideHistoryDTOS = this.passengerRideRequestRepository
+                .getPassengerRideHistoryDTO(passenger.getUserId());
+        if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
+            throw new NoEntryFoundException("No ride history present.");
+        return passengerRideHistoryDTOS;
+    }
+
     // helper methods
     // validate passenger account
     private void validatePassengerAccount(UserEntity userEntity) {
