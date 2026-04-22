@@ -531,16 +531,25 @@ public class PassengerServiceImplementation implements PassengerService {
         
         return "Rating given successfully.";
     }
-
+    
+    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history";
+    private static final long PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS = 300; // 5 minutes
+    @SuppressWarnings("unchecked")
     @Override
     public List<PassengerRideHistoryDTO> getPassengerRideHistory(String email) {
         UserEntity passenger = this.userEntityRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passenger);
-        List<PassengerRideHistoryDTO> passengerRideHistoryDTOS = this.passengerRideRequestRepository
+        String passengerRideHistoryCacheKey = PASSENGER_RIDE_HISTORY_CACHE_KEY + ":" + passenger.getUserId();
+        List<PassengerRideHistoryDTO> passengerRideHistoryDTOS = (List<PassengerRideHistoryDTO>) this.redisTemplate
+            .opsForValue().get(passengerRideHistoryCacheKey);
+        if(passengerRideHistoryDTOS != null)
+            return passengerRideHistoryDTOS;
+        passengerRideHistoryDTOS = this.passengerRideRequestRepository
                 .getPassengerRideHistoryDTO(passenger.getUserId());
         if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
             throw new NoEntryFoundException("No ride history present.");
+        this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS, PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         return passengerRideHistoryDTOS;
     }
 

@@ -87,6 +87,7 @@ public class DriverServiceImplementation implements DriverService {
 
     // Fixed Error 1: Passenger Update Cache Key (Matching PassengerServiceImplementation)
     private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
+    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history";
     
     private final UserRatingRepository userRatingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -599,6 +600,7 @@ public class DriverServiceImplementation implements DriverService {
             // Fix for Error 1: Invalidate Passenger's Update List cache (so they see REJECTED instantly)
             String passengerEmail = passengerRideRequestEntity.getPassengerEntity().getEmail();
             this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
+            this.redisTemplate.delete(PASSENGER_RIDE_HISTORY_CACHE_KEY + ":" + passengerRideRequestEntity.getPassengerEntity().getUserId());
 
             return "Ride request rejected successfully.";
         }catch(Exception e){
@@ -1027,9 +1029,10 @@ public class DriverServiceImplementation implements DriverService {
                 NotificationType.RIDE_COMPLETED,
                 passenger.getRideRequestId());
 
-            // Invalidate Passenger's Update List cache
+            // Invalidate Passenger's Update List and History cache
             String passengerEmail = passenger.getPassengerEntity().getEmail();
             this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
+            this.redisTemplate.delete(PASSENGER_RIDE_HISTORY_CACHE_KEY + ":" + passenger.getPassengerEntity().getUserId());
         }
 
         // Update the RideEntity with final financial data
@@ -1051,6 +1054,9 @@ public class DriverServiceImplementation implements DriverService {
         java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
         if (availableRideKeys != null && !availableRideKeys.isEmpty())
             this.redisTemplate.delete(availableRideKeys);
+        
+        // Invalidate Driver History Cache
+        this.redisTemplate.delete(DRIVER_RIDE_HISTORY_CACHE_KEY + ":" + driverProfile.getDriverProfileId());
 
         log.info("Ride {} completed. Total Ride Cost: ₹{}, Collected Revenue: ₹{}, Fare/Seat: ₹{}, Driver Earning: ₹{}, Commission: ₹{}, Seats Offered: {}, Occupied Seats: {}, Passengers: {}",
             rideId, totalRideFare, collectedRevenue, farePerSeat, driverEarning, systemCommission, originalOfferedForSharing, totalOccupiedSeats, totalPassengersCompleted);
@@ -1123,12 +1129,21 @@ public class DriverServiceImplementation implements DriverService {
         return "Passenger rated successfully";
     }
 //    get driver ride history dto
+    private static final String DRIVER_RIDE_HISTORY_CACHE_KEY = "driver_ride_history";
+    private static final long CACHE_TTL_SECONDS = 300; // 5 minutes
+    @SuppressWarnings("unchecked")
     @Override
     public List<DriverRideHistoryDTO> driverRideHistoryDTO(String email) {
         DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
         UserEntity user = driverProfile.getUser();
         validateUserAccount(user);
+        Long driverId = driverProfile.getDriverProfileId();
+        String rideHistoryCacheKey = DRIVER_RIDE_HISTORY_CACHE_KEY + ":" + driverId;
+        List<DriverRideHistoryDTO> rideHistory = (List<DriverRideHistoryDTO>) this.redisTemplate
+            .opsForValue().get(rideHistoryCacheKey);
+        if(rideHistory != null)
+            return rideHistory;
         List<RideEntity> rideEntities = this.rideEntityRepository.findByDriverProfileId(driverProfile.getDriverProfileId());
         if(rideEntities == null || rideEntities.isEmpty())
             throw new NoEntryFoundException("No ride found for the driver.");
@@ -1140,9 +1155,11 @@ public class DriverServiceImplementation implements DriverService {
         // Group passengers by rideId
         java.util.Map<Long, List<RideJoinedPassengersDTO>> passengersByRideId = allPassengers.stream()
                 .collect(Collectors.groupingBy(RideJoinedPassengersDTO::getRideId));
-        return rideEntities.stream()
+        rideHistory = rideEntities.stream()
                 .map(ride -> mapToDriverRideHistoryDTO(ride, passengersByRideId.getOrDefault(ride.getRideId(), java.util.Collections.emptyList())))
                 .toList();
+        this.redisTemplate.opsForValue().set(rideHistoryCacheKey, rideHistory, CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+        return rideHistory;
     }
 
     // helper methods

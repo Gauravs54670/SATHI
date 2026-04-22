@@ -13,7 +13,8 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 
 public interface PassengerService {
     List<AvailablePostedRideDTO> getAvailableRides(String email, String city, Double sLat, Double sLng, Double dLat, Double dLng);
-    RideSharingResponseToPostedRide requestRide(String email, RideSharingRequestToPostedRide rideSharingRequestToPostedRide);   
+    RideSharingResponseToPostedRide requestRide(
+            String email, RideSharingRequestToPostedRide rideSharingRequestToPostedRide);
     List<RideRequestUpdatesDTO> getRideRequestUpdates(String email);
     void cancelRideRequest(String email, Long rideRequestId);
     List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId);
