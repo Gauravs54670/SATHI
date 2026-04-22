@@ -1,17 +1,13 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
 import java.util.List;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
 import org.springframework.stereotype.Service;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 @Service
 public interface DriverService {
@@ -33,4 +29,5 @@ public interface DriverService {
     void cancelPickup(String email, Long rideId, Long rideRequestId);
     RideCompletedDTO completeRide(String email, Long rideId);
     String ratePassenger(String email, UserRateRequestDTO userRateRequestDTO);
+    List<DriverRideHistoryDTO> driverRideHistoryDTO(String email);
 }

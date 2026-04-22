@@ -172,4 +172,12 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM RideEntity r WHERE r.rideId = :id")
     Optional<RideEntity> findWithPessimisticLockById(@Param("id") Long id);
+    @Query("""
+            SELECT r
+            FROM RideEntity r
+            WHERE r.driverProfileEntity.driverProfileId = :driverProfileId
+            AND r.rideStatus IN ('RIDE_COMPLETED','RIDE_CANCELLED')
+            ORDER BY r.rideDepartureTime DESC
+            """)
+    List<RideEntity> findByDriverProfileId(@Param("driverProfileId") Long driverProfileId);
 }

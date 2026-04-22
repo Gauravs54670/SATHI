@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -21,12 +22,6 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBooking
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.DriverPostedRides;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCacheDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideCompletedDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideGPSUpdatesDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RidePostResponseDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
@@ -1127,7 +1122,48 @@ public class DriverServiceImplementation implements DriverService {
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passenger.getEmail());
         return "Passenger rated successfully";
     }
+//    get driver ride history dto
+    @Override
+    public List<DriverRideHistoryDTO> driverRideHistoryDTO(String email) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        List<RideEntity> rideEntities = this.rideEntityRepository.findByDriverProfileId(driverProfile.getDriverProfileId());
+        if(rideEntities == null || rideEntities.isEmpty())
+            throw new NoEntryFoundException("No ride found for the driver.");
+
+        // N+1 Bulk fetch all passengers for these rides
+        List<Long> rideIds = rideEntities.stream().map(RideEntity::getRideId).toList();
+        List<RideJoinedPassengersDTO> allPassengers = this.passengerRideRequestRepository
+                .findRideJoinedPassengersBulk(rideIds, driverProfile.getDriverProfileId());
+        // Group passengers by rideId
+        java.util.Map<Long, List<RideJoinedPassengersDTO>> passengersByRideId = allPassengers.stream()
+                .collect(Collectors.groupingBy(RideJoinedPassengersDTO::getRideId));
+        return rideEntities.stream()
+                .map(ride -> mapToDriverRideHistoryDTO(ride, passengersByRideId.getOrDefault(ride.getRideId(), java.util.Collections.emptyList())))
+                .toList();
+    }
+
     // helper methods
+//    map to DriverRideHistoryDTO
+    private DriverRideHistoryDTO mapToDriverRideHistoryDTO(RideEntity ride, List<RideJoinedPassengersDTO> joinedPassengers) {
+        return DriverRideHistoryDTO.builder()
+                .rideId(ride.getRideId())
+                .rideDate(ride.getRideDepartureTime().toLocalDate())
+                .rideStartedAt(ride.getRideStartedAt())
+                .rideEndedAt(ride.getRideCompletiontime())
+                .totalPassengersCount(ride.getTotalPassengersSharedRide())
+                .distanceCovered(ride.getActualDistanceOfRide() != null 
+                    ? ride.getActualDistanceOfRide().doubleValue() : 0.0)
+                .rideEarning(ride.getTotalDriverShare() != null 
+                    ? ride.getTotalDriverShare() : BigDecimal.ZERO)
+                .rideStartingAddress(ride.getSourceAddress())
+                .rideEndedAddress(ride.getDestinationAddress())
+                .joinedPassengers(joinedPassengers)
+                .build();
+    }
+    // map to ride RideCacheDTO
     private RideCacheDTO mapToRideCacheDTO(RideEntity rideEntity) {
         return RideCacheDTO.builder()
             .rideId(rideEntity.getRideId())

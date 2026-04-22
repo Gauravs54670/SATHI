@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -15,6 +16,7 @@ import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideAcceptedDrive
 import com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdatesDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.PassengerRideRequestEntity;
 import com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus;
+import org.springframework.data.repository.query.Param;
 
 public interface PassengerRideRequestRepository extends JpaRepository<PassengerRideRequestEntity, Long> {
     @Query("""
@@ -199,11 +201,46 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
     List<PassengerRideRequestEntity> findByRideEntity_RideId(Long rideId);
 
     @Query("""
-        SELECT COALESCE(SUM(prr.requestedSeats), 0) 
-        FROM PassengerRideRequestEntity prr 
-        WHERE prr.rideEntity.rideId = :rideId 
+        SELECT COALESCE(SUM(prr.requestedSeats), 0)
+        FROM PassengerRideRequestEntity prr
+        WHERE prr.rideEntity.rideId = :rideId
         AND prr.rideRequestStatus = com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED
         """)
     int countOnboardedSeatsForRide(Long rideId);
     Optional<PassengerRideRequestEntity> findByRideRequestIdAndPassengerEntity_UserId(Long rideRequestId, Long userId);
+    @Query("""
+        SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO(
+            prr.rideEntity.rideId,
+            prr.rideRequestId,
+            prr.passengerEntity.userFullName,
+            prr.requestedSeats,
+            prr.passengerSourceLocation,
+            prr.passengerDestinationLocation
+        )
+        FROM PassengerRideRequestEntity prr
+        WHERE prr.rideEntity.rideId = :rideId
+        AND prr.rideRequestStatus IN ('COMPLETED','ONBOARDED','NOT_BOARDED')
+        AND prr.rideEntity.driverProfileEntity.driverProfileId = :driverProfileId
+        """)
+        List<RideJoinedPassengersDTO> findRideJoinedPassengers(
+                @Param("rideId") Long rideId,
+                @Param("driverProfileId") Long driverProfileId);
+
+    @Query("""
+        SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO(
+            prr.rideEntity.rideId,
+            prr.rideRequestId,
+            prr.passengerEntity.userFullName,
+            prr.requestedSeats,
+            prr.passengerSourceLocation,
+            prr.passengerDestinationLocation
+        )
+        FROM PassengerRideRequestEntity prr
+        WHERE prr.rideEntity.rideId IN :rideIds
+        AND prr.rideRequestStatus IN ('COMPLETED','ONBOARDED','NOT_BOARDED')
+        AND prr.rideEntity.driverProfileEntity.driverProfileId = :driverProfileId
+        """)
+        List<RideJoinedPassengersDTO> findRideJoinedPassengersBulk(
+                @Param("rideIds") List<Long> rideIds,
+                @Param("driverProfileId") Long driverProfileId);
 }

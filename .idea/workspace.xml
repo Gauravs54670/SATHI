@@ -5,18 +5,23 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c0cf1fe2-07ef-41b6-a79f-3dd949f8cee1" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Model/UserEntity/UserRatingEntity.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Model/UserEntity/UserRatingEntity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/PassengerRideRequestRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/PassengerRideRequestRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/UserRatingRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/UserRatingRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/RideEntityRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Repository/RideEntityRepository.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverService.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverServiceImplementation.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/DriverService/DriverServiceImplementation.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/PassengerService/PassengerService.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/PassengerService/PassengerService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/PassengerService/PassengerServiceImplementation.java" beforeDir="false" afterPath="$PROJECT_DIR$/CarPoolingApplication-SATHI/src/main/java/com/gaurav/CarPoolingApplication_SATHI/Service/PassengerService/PassengerServiceImplementation.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -38,6 +43,9 @@
   &quot;associatedIndex&quot;: 6
 }</component>
   <component name="ProjectId" id="3CZbVAhlORnBzCjtXRfvrtUT6VU" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
