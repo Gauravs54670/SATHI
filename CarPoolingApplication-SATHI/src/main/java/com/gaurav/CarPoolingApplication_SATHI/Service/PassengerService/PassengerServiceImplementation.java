@@ -532,7 +532,7 @@ public class PassengerServiceImplementation implements PassengerService {
         return "Rating given successfully.";
     }
     
-    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history";
+    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history_v2";
     private static final long PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS = 300; // 5 minutes
     @SuppressWarnings("unchecked")
     @Override
@@ -545,8 +545,8 @@ public class PassengerServiceImplementation implements PassengerService {
             .opsForValue().get(passengerRideHistoryCacheKey);
         if(passengerRideHistoryDTOS != null)
             return passengerRideHistoryDTOS;
-        passengerRideHistoryDTOS = this.passengerRideRequestRepository
-                .getPassengerRideHistoryDTO(passenger.getUserId());
+        passengerRideHistoryDTOS = new java.util.ArrayList<>(this.passengerRideRequestRepository
+                .getPassengerRideHistoryDTO(passenger.getUserId()));
         if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
             throw new NoEntryFoundException("No ride history present.");
         this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS, PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);

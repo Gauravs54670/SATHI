@@ -87,7 +87,7 @@ public class DriverServiceImplementation implements DriverService {
 
     // Fixed Error 1: Passenger Update Cache Key (Matching PassengerServiceImplementation)
     private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
-    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history";
+    private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history_v1";
     
     private final UserRatingRepository userRatingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
@@ -1129,7 +1129,7 @@ public class DriverServiceImplementation implements DriverService {
         return "Passenger rated successfully";
     }
 //    get driver ride history dto
-    private static final String DRIVER_RIDE_HISTORY_CACHE_KEY = "driver_ride_history";
+    private static final String DRIVER_RIDE_HISTORY_CACHE_KEY = "driver_ride_history_v2";
     private static final long CACHE_TTL_SECONDS = 300; // 5 minutes
     @SuppressWarnings("unchecked")
     @Override
@@ -1149,15 +1149,15 @@ public class DriverServiceImplementation implements DriverService {
             throw new NoEntryFoundException("No ride found for the driver.");
 
         // N+1 Bulk fetch all passengers for these rides
-        List<Long> rideIds = rideEntities.stream().map(RideEntity::getRideId).toList();
+        List<Long> rideIds = rideEntities.stream().map(RideEntity::getRideId).collect(Collectors.toList());
         List<RideJoinedPassengersDTO> allPassengers = this.passengerRideRequestRepository
                 .findRideJoinedPassengersBulk(rideIds, driverProfile.getDriverProfileId());
         // Group passengers by rideId
         java.util.Map<Long, List<RideJoinedPassengersDTO>> passengersByRideId = allPassengers.stream()
                 .collect(Collectors.groupingBy(RideJoinedPassengersDTO::getRideId));
-        rideHistory = rideEntities.stream()
-                .map(ride -> mapToDriverRideHistoryDTO(ride, passengersByRideId.getOrDefault(ride.getRideId(), java.util.Collections.emptyList())))
-                .toList();
+        rideHistory = new java.util.ArrayList<>(rideEntities.stream()
+                .map(ride -> mapToDriverRideHistoryDTO(ride, new java.util.ArrayList<>(passengersByRideId.getOrDefault(ride.getRideId(), new java.util.ArrayList<>()))))
+                .collect(Collectors.toList()));
         this.redisTemplate.opsForValue().set(rideHistoryCacheKey, rideHistory, CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         return rideHistory;
     }

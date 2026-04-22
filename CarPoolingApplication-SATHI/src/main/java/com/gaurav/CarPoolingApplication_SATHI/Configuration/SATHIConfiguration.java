@@ -121,7 +121,7 @@ public class SATHIConfiguration {
      * Values → stored as JSON (so you can see them clearly in RedisInsight)
      */
     @Bean
-    public RedisTemplate<String, Object> redisTempLate(RedisConnectionFactory redisConnectionFactory) {
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
         // connect application with redis server
         redisTemplate.setConnectionFactory(redisConnectionFactory);
