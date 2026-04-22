@@ -59,7 +59,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
     );
     // get available rides for passengers
     @Query("""
-            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO(
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.AvailablePostedRideDTO(
                 r.rideId,
                 r.driverProfileEntity.user.userFullName,
                 r.driverProfileEntity.user.email,
@@ -87,7 +87,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
         @Param("now") LocalDateTime now, @Param("city") String city);
 
     @Query("""
-            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.AvailablePostedRideDTO(
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.AvailablePostedRideDTO(
                 r.rideId,
                 r.driverProfileEntity.user.userFullName,
                 r.driverProfileEntity.user.email,

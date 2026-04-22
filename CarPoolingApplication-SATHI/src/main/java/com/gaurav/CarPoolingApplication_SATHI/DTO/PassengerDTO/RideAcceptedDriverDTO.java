@@ -19,7 +19,6 @@ public class RideAcceptedDriverDTO {
     private String driverPhoneNumber;
     private String driverProfileUrl;
     private String rideStatus;
-    // Extra details for the passenger to see
     private String vehicleModel;
     private String vehicleNumber;
     private String sourceAddress;

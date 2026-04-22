@@ -20,7 +20,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface PassengerRideRequestRepository extends JpaRepository<PassengerRideRequestEntity, Long> {
     @Query("""
-            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideRequestUpdatesDTO(
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideRequestUpdatesDTO(
                 prr.rideEntity.rideId,
                 prr.rideRequestId,
                 prr.rideRequestStatus,
@@ -146,7 +146,7 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
 
     // Passenger view: Get the accepted driver's details for a specific ride request
     @Query("""
-            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.PassengerRideReceiptDTO(
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.PassengerRideReceiptDTO(
                 prr.rideRequestId,
                 prr.rideEntity.rideId,
                 prr.rideEntity.driverProfileEntity.user.userFullName,
@@ -173,7 +173,7 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
     Optional<PassengerRideReceiptDTO> findRideReceiptByRequestIdAndPassengerId(Long rideRequestId, Long userId);
 
     @Query("""
-            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerRideRequestDTO.RideAcceptedDriverDTO(
+            SELECT new com.gaurav.CarPoolingApplication_SATHI.DTO.PassengerDTO.RideAcceptedDriverDTO(
                 prr.rideRequestId,
                 prr.rideEntity.rideId,
                 prr.rideEntity.driverProfileEntity.user.userFullName,
