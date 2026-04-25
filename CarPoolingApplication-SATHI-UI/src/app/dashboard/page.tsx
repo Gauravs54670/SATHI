@@ -29,10 +29,12 @@ export default function DashboardPage() {
   const [showRidesList, setShowRidesList] = useState(false);
   const [passengerRequests, setPassengerRequests] = useState<RideRequestUpdatesDTO[]>([]);
   const [isFetchingRequests, setIsFetchingRequests] = useState(false);
+  const [driverProfile, setDriverProfile] = useState<any>(null);
 
   // Synchronized Boarding State (Passenger)
   const [incomingBoardingRide, setIncomingBoardingRide] = useState<RideRequestUpdatesDTO | null>(null);
   const [incomingOtp, setIncomingOtp] = useState<string | null>(null);
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -45,20 +47,28 @@ export default function DashboardPage() {
           if (!mounted) return;
           if (roles.includes("DRIVER")) {
             setIsDriver(true);
-            fetchDriverProfile().then(p => p && setAvailabilityStatus(p.driverAvailabilityStatus || "OFF_DUTY"));
+            fetchDriverProfile().then(p => {
+              if (p && mounted) {
+                setDriverProfile(p);
+                setAvailabilityStatus(p.driverAvailabilityStatus || "OFF_DUTY");
+              }
+            });
             checkHasActiveRide().then(hasRide => setHasActiveRide(hasRide));
           }
           
-          fetchRideRequestUpdates().then(requests => {
-            if (mounted) {
-              setPassengerRequests(requests.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
-            }
-          });
+          if (user.isEmailVerified) {
+            fetchRideRequestUpdates().then(requests => {
+              if (mounted) {
+                setPassengerRequests(requests.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
+              }
+            });
+          }
         });
 
       // 2. Synchronized Status Polling (Every 3 seconds)
       pollInterval = setInterval(async () => {
         try {
+          if (!user.isEmailVerified) return;
           const updates = await fetchRideRequestUpdates();
           if (!mounted) return;
 
@@ -224,8 +234,12 @@ export default function DashboardPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 animate-fade-in-up-delay">
-              {/* Card 1 */}
-              <div className="glass-card p-6 hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1">
+              {/* Card 1: Rides Completed */}
+              <div 
+                onClick={() => {
+                  if (!isDriver) setToast({ message: "Please register as driver first to see driver stats", type: "INFO", isVisible: true });
+                }}
+                className="glass-card p-6 hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20
                     flex items-center justify-center">
@@ -235,14 +249,20 @@ export default function DashboardPage() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-white">0</p>
-                    <p className="text-sm text-slate-400">Rides Completed</p>
+                    <p className="text-2xl font-bold text-white">
+                      {isDriver ? (driverProfile?.totalCompletedRides || 0) : (user?.totalRidesCompleted || 0)}
+                    </p>
+                    <p className="text-sm text-slate-400">{isDriver ? "Rides Completed" : "Journeys Taken"}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2 */}
-              <div className="glass-card p-6 hover:border-emerald-500/40 transition-all duration-300 hover:-translate-y-1">
+              {/* Card 2: Earnings / Money Saved */}
+              <div 
+                onClick={() => {
+                  if (!isDriver) setToast({ message: "Please register as driver first to see earnings", type: "INFO", isVisible: true });
+                }}
+                className="glass-card p-6 hover:border-emerald-500/40 transition-all duration-300 hover:-translate-y-1 cursor-pointer">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20
                     flex items-center justify-center">
@@ -252,13 +272,15 @@ export default function DashboardPage() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-white">₹0</p>
-                    <p className="text-sm text-slate-400">Money Saved</p>
+                    <p className="text-2xl font-bold text-white">
+                      ₹{isDriver ? (driverProfile?.totalEarnings || 0).toLocaleString() : "0"}
+                    </p>
+                    <p className="text-sm text-slate-400">{isDriver ? "Total Earnings" : "Money Saved"}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Card 3 */}
+              {/* Card 3: Rating */}
               <div className="glass-card p-6 hover:border-amber-500/40 transition-all duration-300 hover:-translate-y-1">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20
@@ -269,8 +291,10 @@ export default function DashboardPage() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-white">—</p>
-                    <p className="text-sm text-slate-400">Rating</p>
+                    <p className="text-2xl font-bold text-white">
+                      {isDriver ? (driverProfile?.averageRating?.toFixed(1) || "—") : (user?.averageRating?.toFixed(1) || "—")}
+                    </p>
+                    <p className="text-sm text-slate-400">Average Rating</p>
                   </div>
                 </div>
               </div>
@@ -321,32 +345,90 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-              <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-white/5">
-                {/* Always show Offer a Ride */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-white">Quick Actions</h2>
+                
+                {/* History Dropdown */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 transition-all font-black text-[10px] uppercase tracking-widest"
+                  >
+                    <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Ride History
+                    <svg className={`w-3 h-3 transition-transform duration-300 ${showHistoryDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {showHistoryDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowHistoryDropdown(false)} />
+                      <div className="absolute right-0 mt-3 w-64 glass-card border-white/10 shadow-2xl z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <button 
+                          onClick={() => router.push('/history/passenger')}
+                          className="w-full p-4 flex items-center gap-4 rounded-xl hover:bg-white/5 text-left transition-all group"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">Passenger History</p>
+                            <p className="text-[10px] text-slate-500 font-medium">My ride requests</p>
+                          </div>
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            if (isDriver) {
+                              router.push('/history/driver');
+                            } else {
+                              setToast({ message: "Register as a driver first", type: "ERROR", isVisible: true });
+                            }
+                          }}
+                          className="w-full p-4 flex items-center gap-4 rounded-xl hover:bg-white/5 text-left transition-all group mt-1"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">Driver History</p>
+                            <p className="text-[10px] text-slate-500 font-medium">My posted rides</p>
+                          </div>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-8 border-b border-white/5">
+                {/* Offer a Ride Card */}
                 <button 
                   onClick={handleOfferRide}
                   disabled={actionLoading}
                   className="glass-card p-8 text-left border-indigo-500/30 hover:border-indigo-500
-                  transition-all duration-300 hover:-translate-y-1 group disabled:opacity-50 disabled:hover:translate-y-0 disabled:cursor-not-allowed h-full flex flex-col justify-center">
+                  transition-all duration-300 hover:-translate-y-1 group disabled:opacity-50 h-full flex flex-col justify-center">
                   <div className="flex items-center gap-5">
                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center
-                      group-hover:bg-indigo-500/20 transition-all duration-300 ring-1 ring-indigo-500/20 group-hover:ring-indigo-500/40">
+                      group-hover:bg-indigo-500/20 transition-all duration-300 ring-1 ring-indigo-500/20">
                       {actionLoading ? (
-                        <svg className="animate-spin w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <svg className="w-7 h-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       )}
                     </div>
                     <div>
                       <p className="text-xl font-bold text-white mb-1">Offer a Ride</p>
-                      <p className="text-slate-400 text-sm">Earn while you travel by sharing your seats</p>
+                      <p className="text-slate-400 text-sm">Earn while you travel by sharing seats</p>
                     </div>
                   </div>
                 </button>
@@ -358,58 +440,14 @@ export default function DashboardPage() {
                   transition-all duration-300 hover:-translate-y-1 group h-full flex flex-col justify-center">
                   <div className="flex items-center gap-5">
                     <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center
-                      group-hover:bg-purple-500/20 transition-all duration-300 ring-1 ring-purple-500/20 group-hover:ring-purple-500/40">
+                      group-hover:bg-purple-500/20 transition-all duration-300 ring-1 ring-purple-500/20">
                       <svg className="w-7 h-7 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
                     <div>
                       <p className="text-xl font-bold text-white mb-1">Find a Ride</p>
                       <p className="text-slate-400 text-sm">Discover verified drivers heading your way</p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {/* History Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
-                {/* Passenger History Card */}
-                <button 
-                  onClick={() => router.push('/history/passenger')}
-                  className="glass-card p-6 text-left border-white/5 hover:border-indigo-500/30 transition-all duration-300 hover:-translate-y-1 group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:bg-indigo-500/20 transition-all">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-white">Passenger History</p>
-                      <p className="text-slate-400 text-xs font-medium">Past ride requests and outcomes</p>
-                    </div>
-                  </div>
-                </button>
-
-                {/* Driver History Card */}
-                <button 
-                  onClick={() => {
-                    if (isDriver) {
-                      router.push('/history/driver');
-                    } else {
-                      setToast({ message: "You don't have the role for driver yet please register as driver first", type: "ERROR", isVisible: true });
-                    }
-                  }}
-                  className="glass-card p-6 text-left border-white/5 hover:border-emerald-500/30 transition-all duration-300 hover:-translate-y-1 group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-white">Driver History</p>
-                      <p className="text-slate-400 text-xs font-medium">Completed rides and earnings history</p>
                     </div>
                   </div>
                 </button>

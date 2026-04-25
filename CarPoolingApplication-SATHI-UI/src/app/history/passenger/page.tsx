@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { fetchPassengerRideHistory, PassengerRideHistoryDTO } from "@/lib/api";
+import { fetchPassengerRideHistory, PassengerRideHistoryDTO, rateDriver } from "@/lib/api";
 import Toast from "@/components/Toast";
+import RatingModal from "@/components/RatingModal";
 
 export default function PassengerHistoryPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function PassengerHistoryPage() {
     type: "SUCCESS",
     isVisible: false
   });
+  const [ratingTarget, setRatingTarget] = useState<{ rideId: number; rideRequestId: number; name: string } | null>(null);
 
   useEffect(() => {
     loadHistory();
@@ -124,6 +126,21 @@ export default function PassengerHistoryPage() {
                     <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
                     <p className="text-sm text-slate-300 font-medium">{item.dropOffLocation}</p>
                   </div>
+
+                  <div className="pt-4 flex justify-end">
+                    {item.isRated ? (
+                      <span className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
+                        Driver Rated ✓
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => setRatingTarget({ rideId: item.rideId, rideRequestId: item.rideRequestId, name: item.driverName })}
+                        className="px-6 py-2.5 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-xl shadow-indigo-500/20"
+                      >
+                        Rate Driver
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -147,6 +164,29 @@ export default function PassengerHistoryPage() {
         type={toast.type}
         isVisible={toast.isVisible}
         onClose={() => setToast({ ...toast, isVisible: false })}
+      />
+
+      <RatingModal 
+        isOpen={!!ratingTarget}
+        onClose={() => setRatingTarget(null)}
+        targetName={ratingTarget?.name || ""}
+        title="Rate Driver"
+        onSubmit={async (rating, comment) => {
+          if (!ratingTarget) return;
+          try {
+            await rateDriver({ 
+              rideId: ratingTarget.rideId, 
+              rideRequestId: ratingTarget.rideRequestId, 
+              rating, 
+              comment 
+            });
+            setToast({ message: `Rated ${ratingTarget.name} successfully!`, type: "SUCCESS", isVisible: true });
+            loadHistory();
+          } catch (err: any) {
+            setToast({ message: err.message || "Failed to submit rating", type: "ERROR", isVisible: true });
+            throw err;
+          }
+        }}
       />
     </div>
   );

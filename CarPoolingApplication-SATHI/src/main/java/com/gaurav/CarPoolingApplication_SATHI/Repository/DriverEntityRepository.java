@@ -37,6 +37,7 @@ public interface DriverEntityRepository extends JpaRepository<DriverProfileEntit
             driver.totalCancelledRides,
             user.averageRating,
             user.totalRatingsCount,
+            driver.totalEarnings,
             driver.registeredAt
         )
         FROM DriverProfileEntity driver

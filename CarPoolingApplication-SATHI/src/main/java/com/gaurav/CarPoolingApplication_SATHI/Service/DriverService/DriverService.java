@@ -1,4 +1,5 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
+import java.math.BigDecimal;
 import java.util.List;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
@@ -30,4 +31,7 @@ public interface DriverService {
     RideCompletedDTO completeRide(String email, Long rideId);
     String ratePassenger(String email, UserRateRequestDTO userRateRequestDTO);
     List<DriverRideHistoryDTO> driverRideHistoryDTO(String email);
+    Integer getTotalCompletedRides(String email);
+    BigDecimal getTotalEarnings(String email);
+    Integer getTotalCancelledRides(String email);
 }

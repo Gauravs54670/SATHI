@@ -583,7 +583,8 @@ export default function ActiveRidePage() {
                  <div className="space-y-4">
                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rate Your Passengers</p>
                    {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').map((p) => {
-                     const state = passengerRatings[p.passengerRideRequestId] || { rating: 0, comment: '', submitted: false, loading: false };
+                     const state = passengerRatings[p.passengerRideRequestId] || { rating: 0, comment: '', submitted: p.isRated || false, loading: false };
+                     const isRatedFinal = state.submitted || p.isRated;
                      return (
                        <div key={p.passengerRideRequestId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
                          <div className="flex items-center gap-3">
@@ -593,9 +594,9 @@ export default function ActiveRidePage() {
                              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-black">{p.passengerName.charAt(0)}</div>
                            )}
                            <span className="text-sm font-bold text-white flex-1">{p.passengerName}</span>
-                           {state.submitted && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Rated ✓</span>}
+                           {isRatedFinal && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Rated ✓</span>}
                          </div>
-                         {!state.submitted ? (
+                         {!isRatedFinal ? (
                            <>
                              <div className="flex justify-center gap-1.5">
                                {[1, 2, 3, 4, 5].map((star) => (
@@ -628,7 +629,7 @@ export default function ActiveRidePage() {
                          ) : (
                            <div className="flex justify-center gap-1">
                              {[1, 2, 3, 4, 5].map((star) => (
-                               <svg key={star} className={`w-4 h-4 ${star <= state.rating ? 'text-amber-500' : 'text-slate-700'}`} fill={star <= state.rating ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                               <svg key={star} className={`w-4 h-4 ${star <= (state.rating || 0) ? 'text-amber-500' : 'text-slate-700'}`} fill={star <= (state.rating || 0) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                                </svg>
                              ))}

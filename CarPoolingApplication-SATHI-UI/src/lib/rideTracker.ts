@@ -39,6 +39,12 @@ export const startLiveTracking = (rideId: number) => {
 
       updateRideGPS(payload).catch((err) => {
         console.error("[RideTracker] Server sync failed:", err.message);
+        // If the ride is no longer in progress or not found, stop tracking
+        if (err.message?.includes("only available for rides in progress") || 
+            err.message?.includes("Ride not found")) {
+          console.log("[RideTracker] Auto-stopping due to ride status change.");
+          stopLiveTracking();
+        }
       });
     },
     (error) => {

@@ -21,6 +21,7 @@ export default function PassengerTrackPage() {
   const [otp, setOtp] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSummaryModal, setShowSummaryModal] = useState(true);
 
   // Toast State
   const [toast, setToast] = useState<{ show: boolean; msg: string; type: ToastType }>({
@@ -99,6 +100,10 @@ export default function PassengerTrackPage() {
     } catch (err: any) {
       triggerToast(err.message || "Failed to cancel booking", "ERROR");
     }
+  };
+
+  const handleExitRide = () => {
+    triggerToast("Emergency Exit feature is coming soon. Please contact the driver in the meantime.", "INFO");
   };
 
   if (loading) {
@@ -323,12 +328,24 @@ export default function PassengerTrackPage() {
                     </button>
                  </div>
                  
-                 <button 
-                    onClick={handleCancel}
-                    className="w-full py-4 rounded-2xl bg-rose-500/5 text-rose-500 border border-rose-500/20 hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest transition-all"
-                 >
-                    Cancel Booking
-                 </button>
+                 {request.rideRequestStatus === 'ONBOARDED' ? (
+                    <button 
+                       onClick={handleExitRide}
+                       className="w-full py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                    >
+                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                       </svg>
+                       Exit / Give Up Ride
+                    </button>
+                 ) : (
+                    <button 
+                       onClick={handleCancel}
+                       className="w-full py-4 rounded-2xl bg-rose-500/5 text-rose-500 border border-rose-500/20 hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest transition-all"
+                    >
+                       Cancel Booking
+                    </button>
+                 )}
               </div>
 
               {/* Tips Section */}
@@ -357,11 +374,21 @@ export default function PassengerTrackPage() {
       />
 
       {/* Passenger Ride Summary Modal */}
-      {(request.rideRequestStatus === 'COMPLETED' || request.rideStatus === 'RIDE_COMPLETED') && (
+      {showSummaryModal && (request.rideRequestStatus === 'COMPLETED' || request.rideStatus === 'RIDE_COMPLETED') && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center px-6">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowSummaryModal(false)} />
           
-          <div className="relative w-full max-w-lg glass-card border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500">
+          <div className="relative w-full max-w-xl glass-card border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500 max-h-[90vh] overflow-y-auto sathi-scrollbar">
+            {/* Close Button */}
+            <button 
+               onClick={() => setShowSummaryModal(false)}
+               className="absolute top-6 right-6 p-2 rounded-full bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all z-20"
+            >
+               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+               </svg>
+            </button>
+
             {/* Header */}
             <div className="p-8 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent text-center">
                <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 mx-auto mb-6">

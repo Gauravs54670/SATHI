@@ -95,7 +95,7 @@ export async function uploadProfilePhoto(file: File) {
     body: formData,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to upload photo");
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to upload photo");
   return data;
 }
 
@@ -525,6 +525,7 @@ export interface RideAcceptedPassengerDTO {
   rideRequestStatus: string;
   passengerProfilePicture?: string;
   rideDepartureTime: string;
+  isRated: boolean;
 }
 
 export interface RideAcceptedDriverDTO {
@@ -856,6 +857,7 @@ export interface PassengerRideHistoryDTO {
   requestedSeats: number;
   boardingLocation: string;
   dropOffLocation: string;
+  isRated: boolean;
 }
 
 export interface RideJoinedPassengersDTO {
@@ -865,6 +867,7 @@ export interface RideJoinedPassengersDTO {
   requestedSeats: number;
   passengerSourceLocation: string;
   passengerDestinationLocation: string;
+  isRated: boolean;
 }
 
 export interface DriverRideHistoryDTO {
@@ -898,4 +901,24 @@ export async function fetchDriverRideHistory() {
   const data = await res.json();
   if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch driver history");
   return data.data as DriverRideHistoryDTO[];
+}
+export async function fetchDriverCompletedRides() {
+  const res = await fetchWithAuth(`${API_BASE}/driver/total-completed-rides`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to fetch stats");
+  return data.data as number;
+}
+
+export async function fetchDriverEarnings() {
+  const res = await fetchWithAuth(`${API_BASE}/driver/total-earnings`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to fetch stats");
+  return data.data as number;
+}
+
+export async function fetchDriverCancelledRides() {
+  const res = await fetchWithAuth(`${API_BASE}/driver/total-cancelled-rides`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Failed to fetch stats");
+  return data.data as number;
 }

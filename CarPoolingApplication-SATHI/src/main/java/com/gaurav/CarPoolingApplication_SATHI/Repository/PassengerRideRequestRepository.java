@@ -48,8 +48,7 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ACCEPTED,
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.REJECTED,
                 com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION,
-                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED,
-                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.COMPLETED
+                com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED
             )
             AND prr.rideEntity.rideDepartureTime BETWEEN :windowStart AND :windowEnd
             ORDER BY prr.rideRequestedAt DESC
@@ -133,7 +132,8 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 prr.passengerEntity.gender,
                 prr.rideRequestStatus,
                 prr.passengerEntity.profilePictureUrl,
-                prr.rideEntity.rideDepartureTime
+                prr.rideEntity.rideDepartureTime,
+                (SELECT COUNT(ur) > 0 FROM UserRatingEntity ur WHERE ur.rideRequestEntity.rideRequestId = prr.rideRequestId AND ur.ratedBy.userId = prr.rideEntity.driverProfileEntity.user.userId)
             )
             FROM PassengerRideRequestEntity prr
             WHERE prr.rideEntity.driverProfileEntity.user.userId = :userId
@@ -216,11 +216,12 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
             prr.passengerEntity.userFullName,
             prr.requestedSeats,
             prr.passengerSourceLocation,
-            prr.passengerDestinationLocation
+            prr.passengerDestinationLocation,
+            (SELECT COUNT(ur) > 0 FROM UserRatingEntity ur WHERE ur.rideRequestEntity.rideRequestId = prr.rideRequestId AND ur.ratedBy.userId = prr.rideEntity.driverProfileEntity.user.userId)
         )
         FROM PassengerRideRequestEntity prr
         WHERE prr.rideEntity.rideId = :rideId
-        AND prr.rideRequestStatus IN ('COMPLETED','ONBOARDED','NOT_BOARDED')
+        AND prr.rideRequestStatus IN (com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.COMPLETED, com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED, com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.NOT_BOARDED)
         AND prr.rideEntity.driverProfileEntity.driverProfileId = :driverProfileId
         """)
         List<RideJoinedPassengersDTO> findRideJoinedPassengers(
@@ -234,11 +235,12 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
             prr.passengerEntity.userFullName,
             prr.requestedSeats,
             prr.passengerSourceLocation,
-            prr.passengerDestinationLocation
+            prr.passengerDestinationLocation,
+            (SELECT COUNT(ur) > 0 FROM UserRatingEntity ur WHERE ur.rideRequestEntity.rideRequestId = prr.rideRequestId AND ur.ratedBy.userId = prr.rideEntity.driverProfileEntity.user.userId)
         )
         FROM PassengerRideRequestEntity prr
         WHERE prr.rideEntity.rideId IN :rideIds
-        AND prr.rideRequestStatus IN ('COMPLETED','ONBOARDED','NOT_BOARDED')
+        AND prr.rideRequestStatus IN (com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.COMPLETED, com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.ONBOARDED, com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.NOT_BOARDED)
         AND prr.rideEntity.driverProfileEntity.driverProfileId = :driverProfileId
         """)
         List<RideJoinedPassengersDTO> findRideJoinedPassengersBulk(
@@ -251,11 +253,12 @@ public interface PassengerRideRequestRepository extends JpaRepository<PassengerR
                 prr.rideEntity.driverProfileEntity.user.userFullName,
                 prr.requestedSeats,
                 prr.passengerSourceLocation,
-                prr.passengerDestinationLocation
+                prr.passengerDestinationLocation,
+                (SELECT COUNT(ur) > 0 FROM UserRatingEntity ur WHERE ur.rideRequestEntity.rideRequestId = prr.rideRequestId AND ur.ratedBy.userId = :userId)
             )
             FROM PassengerRideRequestEntity prr
             WHERE prr.passengerEntity.userId = :userId
-            AND prr.rideRequestStatus IN ('REJECTED', 'COMPLETED')
+            AND prr.rideRequestStatus IN (com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.REJECTED, com.gaurav.CarPoolingApplication_SATHI.Model.RideEntity.RideRequestStatus.COMPLETED)
             """)
     List<PassengerRideHistoryDTO> getPassengerRideHistoryDTO(@Param("userId") Long userId);
 }

@@ -14,15 +14,17 @@ public class PassengerRideHistoryDTO {
     private Integer requestedSeats;
     private String boardingLocation;
     private String dropOffLocation;
+    private Boolean isRated;
     public PassengerRideHistoryDTO(
             Long rideId, Long rideRequestId,
             String driverName, Integer requestedSeats,
-            String boardingLocation, String dropOffLocation) {
+            String boardingLocation, String dropOffLocation, Boolean isRated) {
         this.rideId = rideId;
         this.rideRequestId = rideRequestId;
         this.driverName = driverName;
         this.requestedSeats = requestedSeats;
         this.boardingLocation = boardingLocation;
         this.dropOffLocation = dropOffLocation;
+        this.isRated = isRated;
     }
 }

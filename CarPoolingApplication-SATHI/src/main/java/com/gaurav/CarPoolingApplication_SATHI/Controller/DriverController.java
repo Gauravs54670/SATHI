@@ -258,4 +258,22 @@ public class DriverController {
             "data", history
         ), HttpStatus.OK);
     }
+
+    @GetMapping("/total-completed-rides")
+    public ResponseEntity<?> getTotalCompletedRides(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(Map.of("data", this.driverService.getTotalCompletedRides(email)));
+    }
+
+    @GetMapping("/total-earnings")
+    public ResponseEntity<?> getTotalEarnings(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(Map.of("data", this.driverService.getTotalEarnings(email)));
+    }
+
+    @GetMapping("/total-cancelled-rides")
+    public ResponseEntity<?> getTotalCancelledRides(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(Map.of("data", this.driverService.getTotalCancelledRides(email)));
+    }
 }

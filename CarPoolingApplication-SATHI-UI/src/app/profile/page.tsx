@@ -78,8 +78,9 @@ export default function ProfilePage() {
       await refreshProfile();
       setUploadSuccess(true);
       setTimeout(() => setUploadSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Upload failed:", err);
+      // Keep error only in console (inspect area) as requested
       setPreview(null);
     } finally {
       setUploading(false);

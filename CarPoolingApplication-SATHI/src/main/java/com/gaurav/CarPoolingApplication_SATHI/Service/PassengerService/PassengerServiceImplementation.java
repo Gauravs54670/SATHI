@@ -180,7 +180,10 @@ public class PassengerServiceImplementation implements PassengerService {
             default:
                 break;
         }
-        if (rideEntity.getRideDepartureTime().isBefore(LocalDateTime.now()))
+        // 4. Validate ride status and time
+        // Allow a 10-minute grace period after departure time for booking, 
+        // as long as the ride hasn't been explicitly started or completed.
+        if (rideEntity.getRideDepartureTime().plusMinutes(10).isBefore(LocalDateTime.now()))
             throw new InvalidRideStateException("This ride has already departed. Please choose a different ride.");
         // 4a. Passenger cannot request their own posted ride
         if (rideEntity.getDriverProfileEntity().getUser().getUserId().equals(user.getUserId()))
@@ -274,6 +277,8 @@ public class PassengerServiceImplementation implements PassengerService {
                 log.warn("Passenger {} has unexpected status {} for ride {}", email, currentStatus, rideEntity.getRideId());
                 throw new InvalidRideStateException("Cannot request this ride. Current request status: " + currentStatus);
             }
+        } else {
+            // NO EXISTING REQUEST → CREATE NEW RIDE REQUEST
             // Calculate current estimated share
             int currentSharingOffering = rideEntity.getTotalAvailableSeats() + 
                 this.passengerRideRequestRepository.countOnboardedSeatsForRide(rideEntity.getRideId());
@@ -283,7 +288,6 @@ public class PassengerServiceImplementation implements PassengerService {
                     BigDecimal.valueOf(currentSharingOffering), 2, java.math.RoundingMode.HALF_UP);
             }
 
-            // CREATE NEW RIDE REQUEST
             passengerRideRequestEntity = PassengerRideRequestEntity.builder()
                 .rideEntity(rideEntity)
                 .passengerEntity(user)
@@ -538,21 +542,20 @@ public class PassengerServiceImplementation implements PassengerService {
     @Override
     public List<PassengerRideHistoryDTO> getPassengerRideHistory(String email) {
         UserEntity passenger = this.userEntityRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException("User not found."));
+        .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passenger);
         String passengerRideHistoryCacheKey = PASSENGER_RIDE_HISTORY_CACHE_KEY + ":" + passenger.getUserId();
         List<PassengerRideHistoryDTO> passengerRideHistoryDTOS = (List<PassengerRideHistoryDTO>) this.redisTemplate
-            .opsForValue().get(passengerRideHistoryCacheKey);
+        .opsForValue().get(passengerRideHistoryCacheKey);
         if(passengerRideHistoryDTOS != null)
             return passengerRideHistoryDTOS;
         passengerRideHistoryDTOS = new java.util.ArrayList<>(this.passengerRideRequestRepository
-                .getPassengerRideHistoryDTO(passenger.getUserId()));
-        if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
-            throw new NoEntryFoundException("No ride history present.");
-        this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS, PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
-        return passengerRideHistoryDTOS;
-    }
-
+            .getPassengerRideHistoryDTO(passenger.getUserId()));
+            if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
+                throw new NoEntryFoundException("No ride history present.");
+            this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS, PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            return passengerRideHistoryDTOS;
+        }
     // helper methods
     // validate passenger account
     private void validatePassengerAccount(UserEntity userEntity) {

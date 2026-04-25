@@ -35,6 +35,7 @@ public class DriverProfileDTO {
     private Integer totalCancelledRides;
     private Double averageRating;
     private Integer totalRatingsCount;
+    private java.math.BigDecimal totalEarnings;
     private LocalDateTime accountCreatedAt;
     public DriverProfileDTO(
         Long driverProfileId,
@@ -55,6 +56,7 @@ public class DriverProfileDTO {
         Integer totalCancelledRides,
         Double averageRating,
         Integer totalRatingsCount,
+        java.math.BigDecimal totalEarnings,
         LocalDateTime registeredAt){
         this.driverProfileId = driverProfileId;
         this.email = email;
@@ -74,6 +76,7 @@ public class DriverProfileDTO {
         this.totalCancelledRides = totalCancelledRides;
         this.averageRating = averageRating;
         this.totalRatingsCount = totalRatingsCount;
+        this.totalEarnings = totalEarnings;
         this.accountCreatedAt = registeredAt;
     }
 }

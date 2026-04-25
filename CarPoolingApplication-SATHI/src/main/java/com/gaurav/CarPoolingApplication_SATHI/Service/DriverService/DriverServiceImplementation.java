@@ -723,7 +723,10 @@ public class DriverServiceImplementation implements DriverService {
         }
         rideEntity.setRideStatus(RideStatus.RIDE_CANCELLED);
         rideEntity.setRideUpdatedAt(LocalDateTime.now());
+        driverProfle.setTotalCancelledRides(driverProfle.getTotalCancelledRides() == 0 ? 
+            1 : driverProfle.getTotalCancelledRides() + 1);
         this.rideEntityRepository.save(rideEntity);
+        this.driverEntityRepository.save(driverProfle);
         log.info("Ride ID: {} cancelled by driver.", rideId);
 
         // 3. Cache Invalidation
@@ -1042,8 +1045,12 @@ public class DriverServiceImplementation implements DriverService {
         rideEntity.setActualFare(collectedRevenue);
         rideEntity.setSystemCommission(systemCommission);
         rideEntity.setTotalDriverShare(driverEarning);
+        driverProfile.setTotalEarnings(driverProfile.getTotalEarnings() == BigDecimal.ZERO ?
+            driverEarning : driverProfile.getTotalEarnings().add(driverEarning));
+        driverProfile.setTotalCompletedRides(driverProfile.getTotalCompletedRides() == 0 ? 
+            1 : driverProfile.getTotalCompletedRides() + 1);
         this.rideEntityRepository.save(rideEntity);
-
+        this.driverEntityRepository.save(driverProfile);
         // Full cache invalidation
         this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
         this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
@@ -1161,6 +1168,32 @@ public class DriverServiceImplementation implements DriverService {
         this.redisTemplate.opsForValue().set(rideHistoryCacheKey, rideHistory, CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         return rideHistory;
     }
+    @Override
+    public Integer getTotalCompletedRides(String email) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        return driverProfile.getTotalCompletedRides();
+    }
+    
+    @Override
+    public BigDecimal getTotalEarnings(String email) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        return driverProfile.getTotalEarnings();
+    }
+    
+    @Override
+    public Integer getTotalCancelledRides(String email) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+            .orElseThrow(() -> new UserNotFoundException("Driver Profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        return driverProfile.getTotalCancelledRides();
+    }
 
     // helper methods
 //    map to DriverRideHistoryDTO
@@ -1256,5 +1289,6 @@ public class DriverServiceImplementation implements DriverService {
         SecureRandom random = new SecureRandom();
         return String.format("%04d", random.nextInt(10000));
     }
+
 
 }

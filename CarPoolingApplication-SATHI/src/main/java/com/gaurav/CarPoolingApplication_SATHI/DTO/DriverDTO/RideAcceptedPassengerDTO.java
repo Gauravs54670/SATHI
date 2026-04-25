@@ -27,6 +27,7 @@ public class RideAcceptedPassengerDTO {
     private String rideRequestStatus;
     private String passengerProfilePicture;
     private LocalDateTime rideDepartureTime;
+    private Boolean isRated;
     public RideAcceptedPassengerDTO(
             Long passengerRideRequestId,
             String passengerName,
@@ -38,7 +39,8 @@ public class RideAcceptedPassengerDTO {
             String passengerGender,
             RideRequestStatus rideRequestStatus,
             String passengerProfilePicture,
-            LocalDateTime rideDepartureTime) {
+            LocalDateTime rideDepartureTime,
+            Boolean isRated) {
         this.passengerRideRequestId = passengerRideRequestId;
         this.passengerName = passengerName;
         this.passengerEmail = passengerEmail;
@@ -50,5 +52,6 @@ public class RideAcceptedPassengerDTO {
         this.rideRequestStatus = rideRequestStatus.name();
         this.passengerProfilePicture = passengerProfilePicture;
         this.rideDepartureTime = rideDepartureTime;
+        this.isRated = isRated;
     }
 }

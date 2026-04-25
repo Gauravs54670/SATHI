@@ -115,7 +115,8 @@ public class UserServiceImplementation implements UserService, AuthService {
         .phoneNumber(request.getPhoneNumber())
         .password(this.passwordEncoder.encode(request.getPassword()))
         .gender(request.getGender())
-        .accountStatus(UserAccountStatus.INACTIVE)
+        .accountStatus(UserAccountStatus.ACTIVE)
+        .isEmailVerified(true)
         .isAdminSuspendedAccount(false)
         .userRoles(Set.of(UserRole.USER, UserRole.PASSENGER))
         .build();

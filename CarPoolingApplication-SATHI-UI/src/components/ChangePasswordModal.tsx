@@ -7,14 +7,16 @@ import { useAuth } from "@/context/AuthContext";
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  email: string;
+  email?: string;
+  initialFlow?: 'change' | 'forgot';
 }
 
-export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ isOpen, onClose, email, initialFlow = 'change' }: ChangePasswordModalProps) {
   const { updateStoredPassword } = useAuth();
   
   // flow: 'change' | 'forgot' | 'otp' | 'success'
-  const [flow, setFlow] = useState<'change' | 'forgot' | 'otp' | 'success'>('change');
+  const [flow, setFlow] = useState<'change' | 'forgot' | 'otp' | 'success'>(initialFlow);
+  const [typedEmail, setTypedEmail] = useState("");
   
   // Form values
   const [oldPassword, setOldPassword] = useState("");
@@ -40,7 +42,8 @@ export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePa
 
   const handleClose = () => {
     resetForm();
-    setFlow('change');
+    setFlow(initialFlow);
+    setTypedEmail("");
     onClose();
   };
 
@@ -67,10 +70,15 @@ export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePa
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    const targetEmail = email || typedEmail;
+    if (!targetEmail) {
+        setError("Please enter your email address.");
+        return;
+    }
     setLoading(true);
     setError("");
     try {
-      await requestOtp(email);
+      await requestOtp(targetEmail);
       setFlow("otp");
       setMessage("OTP sent to your email.");
     } catch (err: any) {
@@ -86,10 +94,11 @@ export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePa
       setError("New passwords do not match.");
       return;
     }
+    const targetEmail = email || typedEmail;
     setLoading(true);
     setError("");
     try {
-      await resetPassword(email, otp, newPassword);
+      await resetPassword(targetEmail, otp, newPassword);
       updateStoredPassword(newPassword);
       setFlow("success");
       setMessage("Password reset successfully.");
@@ -190,11 +199,28 @@ export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePa
         {flow === 'forgot' && (
           <div>
             <h2 className="text-xl font-bold text-white mb-2">Forgot Password</h2>
-            <p className="text-slate-400 text-sm mb-6">We'll send an OTP to your email: <span className="text-white">{email}</span></p>
+            {email ? (
+                <p className="text-slate-400 text-sm mb-6">We'll send an OTP to your email: <span className="text-white">{email}</span></p>
+            ) : (
+                <p className="text-slate-400 text-sm mb-6">Enter your email address to receive a password reset OTP.</p>
+            )}
             
             {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm mb-4">{error}</div>}
             
             <form onSubmit={handleRequestOtp} className="space-y-4">
+              {!email && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={typedEmail}
+                      onChange={(e) => setTypedEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="sathi-input"
+                      required
+                    />
+                  </div>
+              )}
               <button 
                 type="submit" 
                 disabled={loading}
@@ -204,13 +230,15 @@ export default function ChangePasswordModal({ isOpen, onClose, email }: ChangePa
               </button>
             </form>
             
-            <button 
-              onClick={() => { resetForm(); setFlow('change'); }}
-              className="mt-4 w-full text-center text-slate-400 hover:text-white text-sm font-medium transition-colors"
-              type="button"
-            >
-              Back to Change Password
-            </button>
+            {email && (
+                <button 
+                  onClick={() => { resetForm(); setFlow('change'); }}
+                  className="mt-4 w-full text-center text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                  type="button"
+                >
+                  Back to Change Password
+                </button>
+            )}
           </div>
         )}
 

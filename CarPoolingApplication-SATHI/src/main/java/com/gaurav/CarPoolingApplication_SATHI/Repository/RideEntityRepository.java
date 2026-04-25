@@ -177,7 +177,7 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
             FROM RideEntity r
             WHERE r.driverProfileEntity.driverProfileId = :driverProfileId
             AND r.rideStatus IN ('RIDE_COMPLETED','RIDE_CANCELLED')
-            ORDER BY r.rideDepartureTime DESC
+            ORDER BY r.rideUpdatedAt DESC
             """)
     List<RideEntity> findByDriverProfileId(@Param("driverProfileId") Long driverProfileId);
 }

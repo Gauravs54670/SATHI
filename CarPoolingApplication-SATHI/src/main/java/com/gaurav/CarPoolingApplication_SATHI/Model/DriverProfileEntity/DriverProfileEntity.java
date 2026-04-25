@@ -1,5 +1,6 @@
 package com.gaurav.CarPoolingApplication_SATHI.Model.DriverProfileEntity;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -61,6 +62,7 @@ public class DriverProfileEntity {
     private DriverVerificationStatus driverVerificationStatus;
     private Integer totalCompletedRides;
     private Integer totalCancelledRides;
+    private BigDecimal totalEarnings;
     @Builder.Default
     private Boolean isAdminVerified = false;
     private LocalDateTime registeredAt;

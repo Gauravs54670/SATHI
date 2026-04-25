@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { fetchDriverRideHistory, DriverRideHistoryDTO } from "@/lib/api";
+import { fetchDriverRideHistory, DriverRideHistoryDTO, ratePassenger } from "@/lib/api";
 import Toast from "@/components/Toast";
+import RatingModal from "@/components/RatingModal";
 
 export default function DriverHistoryPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function DriverHistoryPage() {
     isVisible: false
   });
   const [expandedRide, setExpandedRide] = useState<number | null>(null);
+  const [ratingTarget, setRatingTarget] = useState<{ rideId: number; rideRequestId: number; name: string } | null>(null);
 
   useEffect(() => {
     loadHistory();
@@ -170,9 +172,24 @@ export default function DriverHistoryPage() {
                                   <p className="text-[10px] text-slate-500 font-medium">{p.requestedSeats} Seat{p.requestedSeats > 1 ? 's' : ''}</p>
                                 </div>
                               </div>
-                              <div className="flex flex-col sm:items-end text-left sm:text-right">
-                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Route</p>
-                                <p className="text-[10px] text-slate-400 font-medium line-clamp-1">{p.passengerSourceLocation} → {p.passengerDestinationLocation}</p>
+                              <div className="flex flex-col sm:items-end text-left sm:text-right gap-3">
+                                <div>
+                                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Route</p>
+                                  <p className="text-[10px] text-slate-400 font-medium line-clamp-1">{p.passengerSourceLocation} → {p.passengerDestinationLocation}</p>
+                                </div>
+                                
+                                {p.isRated ? (
+                                  <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">
+                                    Rated ✓
+                                  </span>
+                                ) : (
+                                  <button 
+                                    onClick={() => setRatingTarget({ rideId: ride.rideId, rideRequestId: p.rideRequestId, name: p.passengerName })}
+                                    className="px-4 py-1.5 rounded-lg bg-indigo-500 text-white text-[8px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-lg shadow-indigo-500/20"
+                                  >
+                                    Rate Passenger
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -203,6 +220,29 @@ export default function DriverHistoryPage() {
         type={toast.type}
         isVisible={toast.isVisible}
         onClose={() => setToast({ ...toast, isVisible: false })}
+      />
+
+      <RatingModal 
+        isOpen={!!ratingTarget}
+        onClose={() => setRatingTarget(null)}
+        targetName={ratingTarget?.name || ""}
+        title="Rate Passenger"
+        onSubmit={async (rating, comment) => {
+          if (!ratingTarget) return;
+          try {
+            await ratePassenger({ 
+              rideId: ratingTarget.rideId, 
+              rideRequestId: ratingTarget.rideRequestId, 
+              rating, 
+              comment 
+            });
+            setToast({ message: `Rated ${ratingTarget.name} successfully!`, type: "SUCCESS", isVisible: true });
+            loadHistory(); // Refresh to update isRated flags
+          } catch (err: any) {
+            setToast({ message: err.message || "Failed to submit rating", type: "ERROR", isVisible: true });
+            throw err;
+          }
+        }}
       />
     </div>
   );

@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -80,6 +82,16 @@ export default function SignInPage() {
               />
             </div>
 
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setIsForgotModalOpen(true)}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+              >
+                Forgot Password?
+              </button>
+            </div>
+
             {/* Submit */}
             <button
               id="signin-submit"
@@ -107,6 +119,11 @@ export default function SignInPage() {
           </p>
         </div>
       </div>
+      <ChangePasswordModal 
+        isOpen={isForgotModalOpen} 
+        onClose={() => setIsForgotModalOpen(false)} 
+        initialFlow="forgot"
+      />
     </div>
   );
 }
