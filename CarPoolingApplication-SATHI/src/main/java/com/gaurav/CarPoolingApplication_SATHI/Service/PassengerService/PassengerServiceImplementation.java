@@ -57,6 +57,7 @@ public class PassengerServiceImplementation implements PassengerService {
     private static final long CACHE_TTL_MINUTES = 10;
     // ride accepted drivers cache key
     private static final String RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX = "ride:accepted:drivers:";
+    private static final String DRIVER_PROFILE_CACHE_PREFIX = "driver:profile:";
     // get otp cache
     private static final String OTP_CACHE_PREFIX = "passenger:otp:";
     private static final Long OTP_CACHE_TTL_MINUTES = 5L;
@@ -526,6 +527,7 @@ public class PassengerServiceImplementation implements PassengerService {
         this.userEntityRepository.save(driver);
 
         // Cache eviction
+        this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + driver.getEmail());
         String cacheKey = RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX + passenger.getUserId() + ":" + userRateRequestDTO.getRideRequestId();
         try {
             this.redisTemplate.delete(cacheKey);

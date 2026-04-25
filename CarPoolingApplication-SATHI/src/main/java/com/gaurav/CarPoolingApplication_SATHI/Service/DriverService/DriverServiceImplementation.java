@@ -733,6 +733,7 @@ public class DriverServiceImplementation implements DriverService {
         this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
         this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId + ":unified");
+        this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email); // Added missing invalidation
         
         // Invalidate Available Rides Cache (though this was in-progress, 
         // cleaning up global caches is safe)
@@ -1045,13 +1046,14 @@ public class DriverServiceImplementation implements DriverService {
         rideEntity.setActualFare(collectedRevenue);
         rideEntity.setSystemCommission(systemCommission);
         rideEntity.setTotalDriverShare(driverEarning);
-        driverProfile.setTotalEarnings(driverProfile.getTotalEarnings() == BigDecimal.ZERO ?
+        driverProfile.setTotalEarnings((driverProfile.getTotalEarnings() == null) ?
             driverEarning : driverProfile.getTotalEarnings().add(driverEarning));
-        driverProfile.setTotalCompletedRides(driverProfile.getTotalCompletedRides() == 0 ? 
+        driverProfile.setTotalCompletedRides((driverProfile.getTotalCompletedRides() == null || driverProfile.getTotalCompletedRides() == 0) ? 
             1 : driverProfile.getTotalCompletedRides() + 1);
         this.rideEntityRepository.save(rideEntity);
         this.driverEntityRepository.save(driverProfile);
         // Full cache invalidation
+        this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + email); // Added missing invalidation
         this.redisTemplate.delete(DRIVER_RIDES_CACHE_PREFIX + email);
         this.redisTemplate.delete(DRIVER_HAS_RIDE_CACHE_PREFIX + email);
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideId + ":unified");
