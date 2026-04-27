@@ -39,15 +39,18 @@ import jakarta.servlet.http.HttpServletResponse;
 @EnableWebSecurity
 public class SATHIConfiguration {
     private final JWTAuthenticationFilter jwtAuthenticationFilter;
+
     public SATHIConfiguration(JWTAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
+
     @Value("${CLOUDINARY_CLOUD_NAME}")
     private String cloudName;
     @Value("${CLOUDINARY_API_KEY}")
     private String apiKey;
     @Value("${CLOUDINARY_API_SECRET}")
     private String apiSecret;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -70,14 +73,13 @@ public class SATHIConfiguration {
         httpSecurity.cors(cors -> cors.configurationSource(corsConfigurationSource()));
         httpSecurity.csrf(AbstractHttpConfigurer::disable);
         httpSecurity.authorizeHttpRequests(
-                request ->
-                        request.requestMatchers("/public/**", "/auth/**").permitAll()
-                                .requestMatchers("/user/**").hasRole("USER")
-                                .requestMatchers("/driver/**").hasRole("DRIVER")
-                                .requestMatchers("/passenger/**").hasRole("PASSENGER")
-                                .requestMatchers("/admin/**").hasRole("ADMIN")
-                                .requestMatchers("/notifications/**").authenticated()
-                                .anyRequest().authenticated());
+                request -> request.requestMatchers("/public/**", "/auth/**", "/ws-sathi/**").permitAll()
+                        .requestMatchers("/user/**").hasRole("USER")
+                        .requestMatchers("/driver/**").hasRole("DRIVER")
+                        .requestMatchers("/passenger/**").hasRole("PASSENGER")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/notifications/**").authenticated()
+                        .anyRequest().authenticated());
         httpSecurity.sessionManagement(
                 session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         // httpSecurity.httpBasic(Customizer.withDefaults());
@@ -87,37 +89,38 @@ public class SATHIConfiguration {
                             response.setContentType("application/json");
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.getWriter().write("""
-                                {
-                                  "status": 403,
-                                  "error": "FORBIDDEN",
-                                  "message": "Access Denied. You are forbidden to access this resource."
-                                }
-                                """);
+                                    {
+                                      "status": 403,
+                                      "error": "FORBIDDEN",
+                                      "message": "Access Denied. You are forbidden to access this resource."
+                                    }
+                                    """);
                         })
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setContentType("application/json");
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.getWriter().write("""
-                                {
-                                  "status": 401,
-                                  "error": "UNAUTHORIZED",
-                                  "message": "Please login first"
-                                }
-                                """);
-                        })
-        );
+                                    {
+                                      "status": 401,
+                                      "error": "UNAUTHORIZED",
+                                      "message": "Please login first"
+                                    }
+                                    """);
+                        }));
         httpSecurity.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return httpSecurity.build();
     }
 
     @Bean
-    AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+    AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration)
+            throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
+
     // redis configuration
     /*
      * RedisTemplate — the main tool to interact with Redis in Spring Boot.
-     * Keys   → stored as plain Strings
+     * Keys → stored as plain Strings
      * Values → stored as JSON (so you can see them clearly in RedisInsight)
      */
     @Bean
@@ -138,22 +141,20 @@ public class SATHIConfiguration {
                         .build(),
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY);
-        GenericJackson2JsonRedisSerializer serializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
+        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
         // Value serializers
         redisTemplate.setValueSerializer(serializer);
         redisTemplate.setHashValueSerializer(serializer);
         redisTemplate.afterPropertiesSet();
         return redisTemplate;
     }
+
     @Bean
     Cloudinary getCloudinaryObject() {
         return new Cloudinary(
-            Map.of(
-                "cloud_name", cloudName,
-                "api_key", apiKey,
-                "api_secret", apiSecret
-            )
-        );
+                Map.of(
+                        "cloud_name", cloudName,
+                        "api_key", apiKey,
+                        "api_secret", apiSecret));
     }
 }

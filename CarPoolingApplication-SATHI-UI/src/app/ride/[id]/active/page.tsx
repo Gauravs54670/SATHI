@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  fetchRideAcceptedPassengers, 
-  RideAcceptedPassengerDTO, 
-  notifyDriverReached, 
-  verifyPassengerOtp, 
+import {
+  fetchRideAcceptedPassengers,
+  RideAcceptedPassengerDTO,
+  notifyDriverReached,
+  verifyPassengerOtp,
   cancelPickup,
   cancelRide,
   completeRide,
@@ -21,7 +21,7 @@ export default function ActiveRidePage() {
   const { id } = useParams();
   const rideIdNum = typeof id === "string" ? Number(id) : 0;
   const router = useRouter();
-  
+
   const [passengers, setPassengers] = useState<RideAcceptedPassengerDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export default function ActiveRidePage() {
         setLoading(true);
         const data = await fetchRideAcceptedPassengers(rideIdNum);
         setPassengers(data);
-        
+
         if (!isTrackingActive()) {
           startLiveTracking(rideIdNum);
         }
@@ -66,7 +66,7 @@ export default function ActiveRidePage() {
       try {
         const data = await fetchRideAcceptedPassengers(rideIdNum);
         setPassengers(data);
-        
+
         // If the passenger we are currently verifying has cancelled or boarded, 
         // automatically close the modal.
         if (activePassenger) {
@@ -231,7 +231,7 @@ export default function ActiveRidePage() {
   return (
     <div className="min-h-screen bg-bg-main pb-20">
       <Navbar />
-      
+
       {/* Live Status Header */}
       <div className="relative w-full bg-gradient-to-b from-indigo-900/20 to-transparent pt-32 pb-12 px-6 border-b border-white/5">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
@@ -246,7 +246,7 @@ export default function ActiveRidePage() {
             <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter">Your Journey has Started</h1>
             <p className="text-slate-400 font-medium">Drive safe and keep the app open for real-time tracking.</p>
           </div>
-          
+
           <div className="flex gap-4">
             <div className="glass-card px-8 py-4 border-white/5 flex flex-col items-center">
               <span className="text-2xl font-black text-white">{passengers.length}</span>
@@ -262,7 +262,7 @@ export default function ActiveRidePage() {
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          
+
           {/* Main Content: Passenger List */}
           <div className="lg:col-span-2 space-y-8">
             <div className="flex items-center gap-4 text-[11px] font-black text-slate-600 uppercase tracking-[0.4em] mb-4">
@@ -284,71 +284,71 @@ export default function ActiveRidePage() {
                 </div>
               ) : (
                 passengers.map((passenger) => (
-                <div key={passenger.passengerRideRequestId} className="glass-card p-8 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all group border-l-4 border-l-indigo-500">
-                  <div className="flex flex-col md:flex-row gap-8 items-start">
-                    {/* Passenger Identity */}
-                    <div className="flex flex-col items-center gap-4 shrink-0">
-                      {passenger.passengerProfilePicture ? (
-                        <img 
-                          src={passenger.passengerProfilePicture} 
-                          className="w-20 h-20 rounded-3xl object-cover border-2 border-indigo-500/20 shadow-2xl"
-                          alt={passenger.passengerName}
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-3xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-2xl">
-                          <span className="text-3xl font-black text-indigo-400">{passenger.passengerName.charAt(0)}</span>
-                        </div>
-                      )}
-                      <div className="text-center">
-                        <h3 className="text-xl font-black text-white">{passenger.passengerName}</h3>
-                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Verified Passenger</p>
-                      </div>
-                    </div>
-
-                    {/* Pickup/Drop Details */}
-                    <div className="flex-1 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                          <div className="relative pl-6">
-                            <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-indigo-500" />
-                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">Pickup From</p>
-                            <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{passenger.passengerPickupLocation}</p>
+                  <div key={passenger.passengerRideRequestId} className="glass-card p-8 border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all group border-l-4 border-l-indigo-500">
+                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                      {/* Passenger Identity */}
+                      <div className="flex flex-col items-center gap-4 shrink-0">
+                        {passenger.passengerProfilePicture ? (
+                          <img
+                            src={passenger.passengerProfilePicture}
+                            className="w-20 h-20 rounded-3xl object-cover border-2 border-indigo-500/20 shadow-2xl"
+                            alt={passenger.passengerName}
+                          />
+                        ) : (
+                          <div className="w-20 h-20 rounded-3xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-2xl">
+                            <span className="text-3xl font-black text-indigo-400">{passenger.passengerName.charAt(0)}</span>
                           </div>
-                          <div className="relative pl-6">
-                            <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-purple-500" />
-                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">Dropping At</p>
-                            <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{passenger.passengerDropLocation}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col justify-center space-y-4 md:pl-8 md:border-l border-white/5">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500 font-black uppercase tracking-widest">Seats Booked</span>
-                            <span className="text-white font-black">{passenger.numberOfSeats}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500 font-black uppercase tracking-widest">Contact</span>
-                            <span className="text-white font-black">{passenger.passengerPhone}</span>
-                          </div>
+                        )}
+                        <div className="text-center">
+                          <h3 className="text-xl font-black text-white">{passenger.passengerName}</h3>
+                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">Verified Passenger</p>
                         </div>
                       </div>
+
+                      {/* Pickup/Drop Details */}
+                      <div className="flex-1 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-4">
+                            <div className="relative pl-6">
+                              <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-indigo-500" />
+                              <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">Pickup From</p>
+                              <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{passenger.passengerPickupLocation}</p>
+                            </div>
+                            <div className="relative pl-6">
+                              <div className="absolute left-0 top-1.5 w-2 h-2 rounded-full bg-purple-500" />
+                              <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">Dropping At</p>
+                              <p className="text-white text-sm font-bold line-clamp-2 leading-relaxed">{passenger.passengerDropLocation}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col justify-center space-y-4 md:pl-8 md:border-l border-white/5">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-black uppercase tracking-widest">Seats Booked</span>
+                              <span className="text-white font-black">{passenger.numberOfSeats}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-black uppercase tracking-widest">Contact</span>
+                              <span className="text-white font-black">{passenger.passengerPhone}</span>
+                            </div>
+                          </div>
+                        </div>
 
                         <div className="flex flex-wrap gap-3 pt-4 border-t border-white/5">
-                          <button 
+                          <button
                             onClick={() => window.open(`tel:${passenger.passengerPhone}`)}
                             className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                             Call
                           </button>
-                          
+
                           {passenger.rideRequestStatus === 'ONBOARDED' ? (
                             <div className="px-6 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ml-auto">
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                               Boarded
                             </div>
                           ) : passenger.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION' ? (
-                            <button 
+                            <button
                               onClick={() => {
                                 setActivePassenger(passenger);
                                 setIsOtpModalOpen(true);
@@ -358,7 +358,7 @@ export default function ActiveRidePage() {
                               Verify OTP
                             </button>
                           ) : (
-                            <button 
+                            <button
                               onClick={() => handleReachedPassenger(passenger)}
                               disabled={isProcessing}
                               className="px-6 py-3 rounded-xl bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-400 transition-all ml-auto hover:shadow-lg hover:shadow-indigo-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -378,50 +378,50 @@ export default function ActiveRidePage() {
           {/* Sidebar: Map and Controls */}
           <div className="space-y-8">
             <div className="glass-card overflow-hidden">
-               <div className="bg-white/5 p-4 border-b border-white/5 flex justify-between items-center">
-                  <h3 className="text-xs font-black text-white uppercase tracking-widest">Visual Map</h3>
-                  <div className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[8px] font-black uppercase">Alpha</div>
-               </div>
-               <div className="aspect-square relative bg-bg-card flex items-center justify-center group overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/10 to-transparent pointer-events-none" />
-                  <div className="relative text-center p-8">
-                     <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 border border-white/10 group-hover:scale-110 transition-transform duration-500">
-                        <svg className="w-8 h-8 text-indigo-500/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                     </div>
-                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest line-clamp-1">Route Visualization coming soon</p>
+              <div className="bg-white/5 p-4 border-b border-white/5 flex justify-between items-center">
+                <h3 className="text-xs font-black text-white uppercase tracking-widest">Visual Map</h3>
+                <div className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 text-[8px] font-black uppercase">Alpha</div>
+              </div>
+              <div className="aspect-square relative bg-bg-card flex items-center justify-center group overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/10 to-transparent pointer-events-none" />
+                <div className="relative text-center p-8">
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 border border-white/10 group-hover:scale-110 transition-transform duration-500">
+                    <svg className="w-8 h-8 text-indigo-500/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                   </div>
-               </div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest line-clamp-1">Route Visualization coming soon</p>
+                </div>
+              </div>
             </div>
 
             <div className="glass-card p-6 space-y-4">
               <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-4">Journey Controls</h3>
-              <button 
+              <button
                 onClick={() => router.push('/dashboard')}
                 className="w-full py-4 px-6 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-3"
               >
-                 Exit to Dashboard
+                Exit to Dashboard
               </button>
-              
-              <button 
+
+              <button
                 onClick={handleCompleteRide}
                 disabled={isProcessing}
                 className="w-full py-4 px-6 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
               >
-                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                 </svg>
-                 Complete Journey
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+                Complete Journey
               </button>
 
-              <button 
+              <button
                 onClick={handleAbortRide}
                 disabled={isProcessing}
                 className="w-full py-4 px-6 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all flex items-center justify-center gap-3 group"
               >
-                 <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                 </svg>
-                 Abort / Cancel Ride
+                <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Abort / Cancel Ride
               </button>
             </div>
           </div>
@@ -433,7 +433,7 @@ export default function ActiveRidePage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
           {/* Locked Backdrop - No onClick to close */}
           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
-          
+
           <div className="relative w-full max-w-md glass-card p-10 border-white/10 shadow-[0_0_50px_rgba(99,102,241,0.2)] animate-in fade-in zoom-in duration-300">
             <div className="text-center space-y-6">
               <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center mx-auto">
@@ -441,14 +441,14 @@ export default function ActiveRidePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              
+
               <div>
                 <h2 className="text-2xl font-black text-white tracking-tight">Boarding Verification</h2>
                 <p className="text-slate-500 text-[11px] font-black uppercase tracking-widest mt-2 px-8">Ask {activePassenger.passengerName} for their secure 4-digit code</p>
               </div>
 
               <div className="pt-4">
-                <input 
+                <input
                   type="text"
                   maxLength={4}
                   autoFocus
@@ -460,21 +460,21 @@ export default function ActiveRidePage() {
               </div>
 
               <div className="space-y-4 pt-4">
-                <button 
+                <button
                   onClick={handleVerifyOtp}
                   disabled={isProcessing || otpValue.length < 4}
                   className="w-full py-5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all shadow-xl shadow-indigo-500/20 active:scale-[0.98]"
                 >
                   {isProcessing ? (
                     <div className="flex items-center justify-center gap-2">
-                       <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                       Verifying...
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Verifying...
                     </div>
                   ) : "Confirm Boarding"}
                 </button>
-                
+
                 <div className="pt-2">
-                  <button 
+                  <button
                     onClick={handleCancelPickup}
                     disabled={isProcessing}
                     className="w-full py-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-red-500/20 transition-all flex items-center justify-center gap-2"
@@ -490,7 +490,7 @@ export default function ActiveRidePage() {
       )}
 
 
-      <Toast 
+      <Toast
         message={toast.message}
         type={toast.type}
         isVisible={toast.isVisible}
@@ -501,152 +501,152 @@ export default function ActiveRidePage() {
       {isSummaryModalOpen && completedData && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-          
+
           <div className="relative w-full max-w-2xl glass-card border-white/10 shadow-2xl animate-in fade-in zoom-in duration-500">
             {/* Header */}
             <div className="p-8 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent">
-               <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                     <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                     </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-white tracking-tight">Journey Summary</h2>
-                    <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-1">Successfully Completed</p>
-                  </div>
-               </div>
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-white tracking-tight">Journey Summary</h2>
+                  <p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest mt-1">Successfully Completed</p>
+                </div>
+              </div>
             </div>
 
             <div className="p-8 space-y-8">
-               {/* Financial Grid */}
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
-                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Journey Value</span>
-                     <span className="text-sm font-black text-slate-400 italic">₹{completedData.fullJourneyCost.toFixed(2)}</span>
-                  </div>
-                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center bg-white/[0.02]">
-                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Revenue</span>
-                     <span className="text-lg font-black text-white">₹{completedData.totalRideFare.toFixed(2)}</span>
-                  </div>
-                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
-                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Commission</span>
-                     <span className="text-lg font-black text-rose-400">-₹{completedData.systemCommission.toFixed(2)}</span>
-                  </div>
-                  <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center border-b-2 border-b-emerald-500 bg-emerald-500/5">
-                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Net Earning</span>
-                     <span className="text-2xl font-black text-emerald-400">₹{completedData.driverEarning.toFixed(2)}</span>
-                  </div>
-               </div>
+              {/* Financial Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Journey Value</span>
+                  <span className="text-sm font-black text-slate-400 italic">₹{completedData.fullJourneyCost.toFixed(2)}</span>
+                </div>
+                <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center bg-white/[0.02]">
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Revenue</span>
+                  <span className="text-lg font-black text-white">₹{completedData.totalRideFare.toFixed(2)}</span>
+                </div>
+                <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center">
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Commission</span>
+                  <span className="text-lg font-black text-rose-400">-₹{completedData.systemCommission.toFixed(2)}</span>
+                </div>
+                <div className="glass-card p-4 border-white/5 flex flex-col items-center justify-center text-center border-b-2 border-b-emerald-500 bg-emerald-500/5">
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Net Earning</span>
+                  <span className="text-2xl font-black text-emerald-400">₹{completedData.driverEarning.toFixed(2)}</span>
+                </div>
+              </div>
 
-               {/* Distance & Sharing Stats */}
-               <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                    <span>Distance & Sharing Details</span>
-                    <div className="h-px flex-1 bg-white/5" />
+              {/* Distance & Sharing Stats */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                  <span>Distance & Sharing Details</span>
+                  <div className="h-px flex-1 bg-white/5" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Seats Offered / Occupied</span>
+                    <span className="text-white font-black">{completedData.totalSeatsOffered} / {completedData.totalSeatsOccupied}</span>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Seats Offered / Occupied</span>
-                        <span className="text-white font-black">{completedData.totalSeatsOffered} / {completedData.totalSeatsOccupied}</span>
-                     </div>
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Fare Split per Seat</span>
-                        <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)}</span>
-                     </div>
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Estimated Distance</span>
-                        <span className="text-white font-black">{completedData.estimatedDistance.toFixed(1)} KM</span>
-                     </div>
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Actual GPS Distance</span>
-                        <span className="text-white font-black">{completedData.actualDistance.toFixed(1)} KM</span>
-                     </div>
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Billing Distance</span>
-                        <span className="text-emerald-400 font-black">{completedData.billingDistance.toFixed(1)} KM</span>
-                     </div>
-                     <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
-                        <span className="text-slate-400 font-bold">Fare per Passenger</span>
-                        <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)} / Seat</span>
-                     </div>
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Fare Split per Seat</span>
+                    <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)}</span>
                   </div>
-               </div>
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Estimated Distance</span>
+                    <span className="text-white font-black">{completedData.estimatedDistance.toFixed(1)} KM</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Actual GPS Distance</span>
+                    <span className="text-white font-black">{completedData.actualDistance.toFixed(1)} KM</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Billing Distance</span>
+                    <span className="text-emerald-400 font-black">{completedData.billingDistance.toFixed(1)} KM</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-xl border border-white/5">
+                    <span className="text-slate-400 font-bold">Fare per Passenger</span>
+                    <span className="text-white font-black">₹{completedData.rideFarePerPassenger.toFixed(2)} / Seat</span>
+                  </div>
+                </div>
+              </div>
 
-               <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 text-center">
-                  <p className="text-indigo-400 text-[10px] font-medium leading-relaxed">{completedData.message}</p>
-               </div>
+              <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 text-center">
+                <p className="text-indigo-400 text-[10px] font-medium leading-relaxed">{completedData.message}</p>
+              </div>
 
-               {/* Rate Passengers Section */}
-               {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').length > 0 && (
-                 <div className="space-y-4">
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rate Your Passengers</p>
-                   {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').map((p) => {
-                     const state = passengerRatings[p.passengerRideRequestId] || { rating: 0, comment: '', submitted: p.isRated || false, loading: false };
-                     const isRatedFinal = state.submitted || p.isRated;
-                     return (
-                       <div key={p.passengerRideRequestId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
-                         <div className="flex items-center gap-3">
-                           {p.passengerProfilePicture ? (
-                             <img src={p.passengerProfilePicture} className="w-8 h-8 rounded-lg object-cover" alt={p.passengerName} />
-                           ) : (
-                             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-black">{p.passengerName.charAt(0)}</div>
-                           )}
-                           <span className="text-sm font-bold text-white flex-1">{p.passengerName}</span>
-                           {isRatedFinal && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Rated ✓</span>}
-                         </div>
-                         {!isRatedFinal ? (
-                           <>
-                             <div className="flex justify-center gap-1.5">
-                               {[1, 2, 3, 4, 5].map((star) => (
-                                 <button key={star} onClick={() => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, rating: star } }))}
-                                   className={`w-8 h-8 rounded-lg transition-all active:scale-90 ${star <= state.rating ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30' : 'bg-white/5 text-slate-600 border border-white/10'}`}>
-                                   <svg className="w-4 h-4 mx-auto" fill={star <= state.rating ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                                   </svg>
-                                 </button>
-                               ))}
-                             </div>
-                             <input type="text" value={state.comment} onChange={(e) => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, comment: e.target.value } }))}
-                               placeholder="Quick note (optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50" />
-                             <button onClick={async () => {
-                               if (state.rating === 0) return;
-                               setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: true } }));
-                               try {
-                                 await ratePassenger({ rideId: rideIdNum, rideRequestId: p.passengerRideRequestId, rating: state.rating, comment: state.comment || undefined });
-                                 setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, submitted: true, loading: false } }));
-                                 setToast({ message: `Rated ${p.passengerName} successfully!`, type: 'SUCCESS', isVisible: true });
-                               } catch (err: any) {
-                                 setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: false } }));
-                                 setToast({ message: err.message || 'Failed to rate', type: 'ERROR', isVisible: true });
-                               }
-                             }} disabled={state.rating === 0 || state.loading}
-                               className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all active:scale-[0.98]">
-                               {state.loading ? 'Submitting...' : 'Submit Rating'}
-                             </button>
-                           </>
-                         ) : (
-                           <div className="flex justify-center gap-1">
-                             {[1, 2, 3, 4, 5].map((star) => (
-                               <svg key={star} className={`w-4 h-4 ${star <= (state.rating || 0) ? 'text-amber-500' : 'text-slate-700'}`} fill={star <= (state.rating || 0) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                               </svg>
-                             ))}
-                           </div>
-                         )}
-                       </div>
-                     );
-                   })}
-                 </div>
-               )}
+              {/* Rate Passengers Section */}
+              {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rate Your Passengers</p>
+                  {passengers.filter(p => p.rideRequestStatus === 'ONBOARDED' || p.rideRequestStatus === 'COMPLETED').map((p) => {
+                    const state = passengerRatings[p.passengerRideRequestId] || { rating: 0, comment: '', submitted: p.isRated || false, loading: false };
+                    const isRatedFinal = state.submitted || p.isRated;
+                    return (
+                      <div key={p.passengerRideRequestId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                        <div className="flex items-center gap-3">
+                          {p.passengerProfilePicture ? (
+                            <img src={p.passengerProfilePicture} className="w-8 h-8 rounded-lg object-cover" alt={p.passengerName} />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-black">{p.passengerName.charAt(0)}</div>
+                          )}
+                          <span className="text-sm font-bold text-white flex-1">{p.passengerName}</span>
+                          {isRatedFinal && <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Rated ✓</span>}
+                        </div>
+                        {!isRatedFinal ? (
+                          <>
+                            <div className="flex justify-center gap-1.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button key={star} onClick={() => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, rating: star } }))}
+                                  className={`w-8 h-8 rounded-lg transition-all active:scale-90 ${star <= state.rating ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30' : 'bg-white/5 text-slate-600 border border-white/10'}`}>
+                                  <svg className="w-4 h-4 mx-auto" fill={star <= state.rating ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                  </svg>
+                                </button>
+                              ))}
+                            </div>
+                            <input type="text" value={state.comment} onChange={(e) => setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, comment: e.target.value } }))}
+                              placeholder="Quick note (optional)" className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50" />
+                            <button onClick={async () => {
+                              if (state.rating === 0) return;
+                              setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: true } }));
+                              try {
+                                await ratePassenger({ rideId: rideIdNum, rideRequestId: p.passengerRideRequestId, rating: state.rating, comment: state.comment || undefined });
+                                setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, submitted: true, loading: false } }));
+                                setToast({ message: `Rated ${p.passengerName} successfully!`, type: 'SUCCESS', isVisible: true });
+                              } catch (err: any) {
+                                setPassengerRatings(prev => ({ ...prev, [p.passengerRideRequestId]: { ...state, loading: false } }));
+                                setToast({ message: err.message || 'Failed to rate', type: 'ERROR', isVisible: true });
+                              }
+                            }} disabled={state.rating === 0 || state.loading}
+                              className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all active:scale-[0.98]">
+                              {state.loading ? 'Submitting...' : 'Submit Rating'}
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex justify-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <svg key={star} className={`w-4 h-4 ${star <= (state.rating || 0) ? 'text-amber-500' : 'text-slate-700'}`} fill={star <= (state.rating || 0) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                              </svg>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-               <button 
+              <button
                 onClick={() => router.push('/dashboard')}
                 className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all hover:bg-slate-200 active:scale-[0.98]"
-               >
-                 Return to Dashboard
-               </button>
+              >
+                Return to Dashboard
+              </button>
             </div>
           </div>
         </div>

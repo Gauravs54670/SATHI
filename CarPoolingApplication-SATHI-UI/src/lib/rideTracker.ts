@@ -30,7 +30,7 @@ export const startLiveTracking = (rideId: number) => {
         heading: position.coords.heading || 0,
         timestamp: new Date(position.timestamp).toISOString(),
       };
-      
+
       console.log(`[RideTracker] Updating GPS for ride #${rideId}:`, {
         lat: payload.latitude,
         lng: payload.longitude,
@@ -40,8 +40,8 @@ export const startLiveTracking = (rideId: number) => {
       updateRideGPS(payload).catch((err) => {
         console.error("[RideTracker] Server sync failed:", err.message);
         // If the ride is no longer in progress or not found, stop tracking
-        if (err.message?.includes("only available for rides in progress") || 
-            err.message?.includes("Ride not found")) {
+        if (err.message?.includes("only available for rides in progress") ||
+          err.message?.includes("Ride not found")) {
           console.log("[RideTracker] Auto-stopping due to ride status change.");
           stopLiveTracking();
         }
@@ -49,7 +49,7 @@ export const startLiveTracking = (rideId: number) => {
     },
     (error) => {
       console.error("[RideTracker] Geolocation error:", error.code, error.message);
-      
+
       // If permission denied, we should probably alert the UI
       if (error.code === error.PERMISSION_DENIED) {
         stopLiveTracking();
