@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -93,13 +94,14 @@ public class DriverServiceImplementation implements DriverService {
 
     private final UserRatingRepository userRatingRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SimpMessagingTemplate messagingTemplate;
     private final UserEntityRepository userEntityRepository;
     private final DriverEntityRepository driverEntityRepository;
     private final RideEntityRepository rideEntityRepository;
     private final PassengerRideRequestRepository passengerRideRequestRepository;
     private final NotificationService notificationService;
-
     public DriverServiceImplementation(
+            SimpMessagingTemplate simpMessagingTemplate,
             UserRatingRepository userRatingRepository,
             PassengerRideRequestRepository passengerRideRequestRepository,
             UserEntityRepository userEntityRepository,
@@ -107,6 +109,7 @@ public class DriverServiceImplementation implements DriverService {
             DriverEntityRepository driverEntityRepository,
             RideEntityRepository rideEntityRepository,
             NotificationService notificationService) {
+        this.messagingTemplate = simpMessagingTemplate;
         this.userRatingRepository = userRatingRepository;
         this.redisTemplate = redisTemplate;
         this.driverEntityRepository = driverEntityRepository;
@@ -237,7 +240,9 @@ public class DriverServiceImplementation implements DriverService {
                 rideDeparturDateTime.plusHours(2));
         if (hasConflict) {
             throw new IllegalArgumentException(
-                    "Overlap Detected: You already have another ride scheduled within 2 hours of this departure time. Please ensure your rides do not overlap.");
+                    "Overlap Detected: " + 
+                    "You already have another ride scheduled within 2 hours of this departure time. " +
+                    "Please ensure your rides do not overlap.");
         }
 
         // service-level logic)
@@ -552,7 +557,16 @@ public class DriverServiceImplementation implements DriverService {
             java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
             if (availableRideKeys != null && !availableRideKeys.isEmpty())
                 this.redisTemplate.delete(availableRideKeys);
+                
+            // 8. STOMP: Notify the passenger they were accepted
+            messagingTemplate.convertAndSendToUser(
+                    passengerEmail,
+                    "/queue/ride-status",
+                    "ACCEPTED"
+            );
+                
             return "Ride request accepted successfully.";
+
         } catch (InvalidRideStateException e) {
             throw e;
         } catch (Exception e) {
@@ -619,7 +633,11 @@ public class DriverServiceImplementation implements DriverService {
             this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
             this.redisTemplate.delete(PASSENGER_RIDE_HISTORY_CACHE_KEY + ":"
                     + passengerRideRequestEntity.getPassengerEntity().getUserId());
-
+            messagingTemplate.convertAndSendToUser(
+                passengerEmail,
+                "/queue/ride-status",
+                "REJECTED"
+            );
             return "Ride request rejected successfully.";
         } catch (Exception e) {
             throw new RuntimeException("Failed to reject ride request.");
@@ -719,6 +737,10 @@ public class DriverServiceImplementation implements DriverService {
 
         this.rideEntityRepository.save(rideEntity);
         log.info("Ride ID: {} started by driver. notified {} passengers.", rideId, acceptedRequests.size());
+        messagingTemplate.convertAndSend(
+                "/topic/ride/" + rideId + "/updates",
+                "STARTED"
+        );
     }
 
     // cancel ride
@@ -769,6 +791,10 @@ public class DriverServiceImplementation implements DriverService {
         if (availableRideKeys != null && !availableRideKeys.isEmpty()) {
             this.redisTemplate.delete(availableRideKeys);
         }
+        messagingTemplate.convertAndSend(
+                "/topic/ride/" + rideId + "/updates",
+                "CANCELLED"
+        );
     }
 
     // real time ride GPS updates tracking
@@ -972,6 +998,12 @@ public class DriverServiceImplementation implements DriverService {
 
         this.rideEntityRepository.save(rideEntity);
         this.passengerRideRequestRepository.save(rideRequestEntity);
+        messagingTemplate.convertAndSendToUser(
+                rideRequestEntity.getPassengerEntity().getEmail(),
+                "/queue/ride/" + rideId + "/updates",
+                "DRIVER CANCELLED AT PICKUP"
+        );
+        this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + rideRequestEntity.getPassengerEntity().getEmail());
     }
 
     // complete ride
@@ -1123,6 +1155,10 @@ public class DriverServiceImplementation implements DriverService {
                 rideId, totalRideFare, collectedRevenue, farePerSeat, driverEarning, systemCommission,
                 originalOfferedForSharing, totalOccupiedSeats, totalPassengersCompleted);
 
+        messagingTemplate.convertAndSend(
+                "/topic/ride/" + rideId + "/updates",
+                "COMPLETED"
+        );
         // Return summary DTO
         return RideCompletedDTO.builder()
                 .rideId(rideId)

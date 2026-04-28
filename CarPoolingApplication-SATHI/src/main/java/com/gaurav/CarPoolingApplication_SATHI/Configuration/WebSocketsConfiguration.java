@@ -20,7 +20,7 @@ public class WebSocketsConfiguration implements WebSocketMessageBrokerConfigurer
     @Override
     public void configureMessageBroker(@NonNull MessageBrokerRegistry registry) {
         // The delivery of the message is done by the message broker
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         // The prefix of the application
         registry.setApplicationDestinationPrefixes("/app");
     }
