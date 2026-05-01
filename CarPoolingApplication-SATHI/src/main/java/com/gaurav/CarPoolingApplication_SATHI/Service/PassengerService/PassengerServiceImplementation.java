@@ -1,12 +1,16 @@
 package com.gaurav.CarPoolingApplication_SATHI.Service.PassengerService;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.PassengerRideHistoryDTO;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +51,7 @@ public class PassengerServiceImplementation implements PassengerService {
     // Cache TTL (time-to-live) in minutes
     // redis keys for ride request rate limiting
     private static final String RIDE_REQUEST_COUNT_PREFIX = "ride:request:count";
-    private static final Long RIDE_REQUEST_TIME_LIMIT = 2L;   
+    private static final Long RIDE_REQUEST_TIME_LIMIT = 2L;
     private static final String ACTIVE_RIDES_REQUESTS_CACHE_PREFIX = "active:rides:requests:";
     // ride request updates cache key
     private static final String RIDE_REQUEST_UPDATES_CACHE_KEY = "ride:request:user:updates";
@@ -61,89 +65,105 @@ public class PassengerServiceImplementation implements PassengerService {
     // get otp cache
     private static final String OTP_CACHE_PREFIX = "passenger:otp:";
     private static final Long OTP_CACHE_TTL_MINUTES = 5L;
-    private final RedisTemplate<String,Object> redisTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;
     private final UserEntityRepository userEntityRepository;
     private final RideEntityRepository rideEntityRepository;
     private final PassengerRideRequestRepository passengerRideRequestRepository;
     private final NotificationService notificationService;
     private final UserRatingRepository userRatingRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+
     public PassengerServiceImplementation(
-        UserRatingRepository userRatingRepository,
-        PassengerRideRequestRepository passengerRideRequestRepository,
-        RedisTemplate<String,Object> redisTemplate,
-        UserEntityRepository userEntityRepository, 
-        RideEntityRepository rideEntityRepository,
-        NotificationService notificationService) {
+            SimpMessagingTemplate messagingTemplate,
+            UserRatingRepository userRatingRepository,
+            PassengerRideRequestRepository passengerRideRequestRepository,
+            RedisTemplate<String, Object> redisTemplate,
+            UserEntityRepository userEntityRepository,
+            RideEntityRepository rideEntityRepository,
+            NotificationService notificationService) {
         this.passengerRideRequestRepository = passengerRideRequestRepository;
         this.redisTemplate = redisTemplate;
         this.userEntityRepository = userEntityRepository;
         this.rideEntityRepository = rideEntityRepository;
         this.notificationService = notificationService;
         this.userRatingRepository = userRatingRepository;
+        this.messagingTemplate = messagingTemplate;
     }
+
     // get available rides with caching and proximity filtering support
     @Override
     public List<AvailablePostedRideDTO> getAvailableRides(
-        String email, String city, Double sLat, Double sLng, Double dLat, Double dLng) {
+            String email, String city, Double sLat, Double sLng, Double dLat, Double dLng) {
         // Fetch the user from the database to identify who is making the request
         UserEntity userEntity = userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found"));    
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         // Validate that the user's account is verified, active, and not suspended
         validatePassengerAccount(userEntity);
-        // Check if geospatial coordinates (latitude/longitude) are provided for a proximity search
+        // Check if geospatial coordinates (latitude/longitude) are provided for a
+        // proximity search
         boolean hasCoords = sLat != null && sLng != null && dLat != null && dLng != null;
-        // Initialize cacheKey; it will stay null if we are performing a fresh coordinate-based search
+        // Initialize cacheKey; it will stay null if we are performing a fresh
+        // coordinate-based search
         String cacheKey = null;
         // If NO coordinates are provided, we use caching to avoid heavy DB queries
         if (!hasCoords) {
-            // Generate key: either global (rides:available) or city-specific (rides:available:delhi)
-            cacheKey = (city == null || city.trim().isEmpty()) 
-                        ? AVAILABLE_RIDES_GLOBAL_CACHE_KEY 
-                        : AVAILABLE_RIDES_GLOBAL_CACHE_KEY + ":" + city.trim().toLowerCase();
+            // Generate key: either global (rides:available) or city-specific
+            // (rides:available:delhi)
+            cacheKey = (city == null || city.trim().isEmpty())
+                    ? AVAILABLE_RIDES_GLOBAL_CACHE_KEY
+                    : AVAILABLE_RIDES_GLOBAL_CACHE_KEY + ":" + city.trim().toLowerCase();
         }
         List<AvailablePostedRideDTO> availableRides = null;
         // If we have a cache key (meaning city/global search), try fetching from Redis
         if (cacheKey != null) {
             @SuppressWarnings("unchecked")
-            List<AvailablePostedRideDTO> cached = (List<AvailablePostedRideDTO>) redisTemplate.opsForValue().get(cacheKey);
+            List<AvailablePostedRideDTO> cached = (List<AvailablePostedRideDTO>) redisTemplate.opsForValue()
+                    .get(cacheKey);
             availableRides = cached; // This will be null if the key expired (Cache Miss)
         }
-        // If results weren't in cache (Cache Miss) OR we skipped cache because of coordinates
+        // If results weren't in cache (Cache Miss) OR we skipped cache because of
+        // coordinates
         if (availableRides == null) {
             if (hasCoords) {
-                // Perform a Geospatial Query to find rides within a start/end proximity (~5.5km)
+                // Perform a Geospatial Query to find rides within a start/end proximity
+                // (~5.5km)
                 availableRides = this.rideEntityRepository.findAvailableRidesWithFilter(
-                    LocalDateTime.now(), city, sLat, sLng, dLat, dLng, 0.05);
+                        LocalDateTime.now(), city, sLat, sLng, dLat, dLng, 0.05);
             } else {
-                // Fetch rides from DB filtered only by city (or all available if no city provided)
+                // Fetch rides from DB filtered only by city (or all available if no city
+                // provided)
                 availableRides = this.rideEntityRepository.findAvailableRides(LocalDateTime.now(), city);
             }
-            // If we just fetched a City or Global list from DB, save it to Redis for next time
+            // If we just fetched a City or Global list from DB, save it to Redis for next
+            // time
             if (cacheKey != null) {
                 this.redisTemplate.opsForValue().set(cacheKey, availableRides, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
             }
         }
-        // Final Filter: Loop through results and remove any rides where the user is the driver
+        // Final Filter: Loop through results and remove any rides where the user is the
+        // driver
         // (Prevents someone from booking a seat in a ride they have posted themselves)
         final String passengerEmail = userEntity.getEmail();
         availableRides.removeIf(ride -> ride.getDriverEmail().equals(passengerEmail));
         // Return the final list of available rides to the user
         return availableRides;
     }
+
     // request ride
-    @SuppressWarnings("null")
     @Override
     @Transactional
-    public RideSharingResponseToPostedRide requestRide(String email, RideSharingRequestToPostedRide rideSharingRequestToPostedRide) {
-        log.info("Processing ride request from user: {} for rideId: {}", email, rideSharingRequestToPostedRide.getRideId());
+    public RideSharingResponseToPostedRide requestRide(String email,
+            RideSharingRequestToPostedRide rideSharingRequestToPostedRide) {
+        log.info("Processing ride request from user: {} for rideId: {}", email,
+                rideSharingRequestToPostedRide.getRideId());
         UserEntity user = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> {
-                log.error("User not found: {}", email);
-                return new UserNotFoundException("User not found.");
-            });
+                .orElseThrow(() -> {
+                    log.error("User not found: {}", email);
+                    return new UserNotFoundException("User not found.");
+                });
         validatePassengerAccount(user);
         // 2. RATE LIMITING (max 3 requests per RIDE_REQUEST_TIME_LIMIT minutes)
-        //    Uses userId so it can't be bypassed by changing email casing
+        // Uses userId so it can't be bypassed by changing email casing
         String rateLimitKey = RIDE_REQUEST_COUNT_PREFIX + ":" + user.getUserId();
         try {
             Long count = redisTemplate.opsForValue().increment(rateLimitKey);
@@ -152,7 +172,7 @@ public class PassengerServiceImplementation implements PassengerService {
                 long waitMinutes = (ttl != null && ttl > 0) ? ttl : RIDE_REQUEST_TIME_LIMIT;
                 log.warn("Rate limit exceeded for user: {}. Count: {}, TTL: {} min", email, count, waitMinutes);
                 throw new TooManyRequestException(
-                    "You are sending too many requests. Please try again after " + waitMinutes + " minute(s).");
+                        "You are sending too many requests. Please try again after " + waitMinutes + " minute(s).");
             }
             // Set TTL only on first increment to start the sliding window
             if (count != null && count == 1) {
@@ -161,14 +181,16 @@ public class PassengerServiceImplementation implements PassengerService {
         } catch (TooManyRequestException e) {
             throw e; // re-throw to UI
         } catch (Exception e) {
-            log.error("Redis error during rate limiting for user {}: {}. Proceeding without rate limit.", email, e.getMessage());
+            log.error("Redis error during rate limiting for user {}: {}. Proceeding without rate limit.", email,
+                    e.getMessage());
             throw new TooManyRequestException("Too many requests. Please try again later.");
         }
-        RideEntity rideEntity = this.rideEntityRepository.findWithPessimisticLockById(rideSharingRequestToPostedRide.getRideId())
-            .orElseThrow(() -> {
-                log.error("Ride not found: {}", rideSharingRequestToPostedRide.getRideId());
-                return new InvalidRideStateException("Ride not found.");
-            });
+        RideEntity rideEntity = this.rideEntityRepository
+                .findWithPessimisticLockById(rideSharingRequestToPostedRide.getRideId())
+                .orElseThrow(() -> {
+                    log.error("Ride not found: {}", rideSharingRequestToPostedRide.getRideId());
+                    return new InvalidRideStateException("Ride not found.");
+                });
         switch (rideEntity.getRideStatus()) {
             case RIDE_CANCELLED:
                 throw new InvalidRideStateException("This ride has been cancelled by the driver.");
@@ -182,7 +204,7 @@ public class PassengerServiceImplementation implements PassengerService {
                 break;
         }
         // 4. Validate ride status and time
-        // Allow a 10-minute grace period after departure time for booking, 
+        // Allow a 10-minute grace period after departure time for booking,
         // as long as the ride hasn't been explicitly started or completed.
         if (rideEntity.getRideDepartureTime().plusMinutes(10).isBefore(LocalDateTime.now()))
             throw new InvalidRideStateException("This ride has already departed. Please choose a different ride.");
@@ -192,24 +214,25 @@ public class PassengerServiceImplementation implements PassengerService {
         // 4b. Check seat availability
         if (rideEntity.getTotalAvailableSeats() < rideSharingRequestToPostedRide.getSeatsRequired())
             throw new InvalidRideStateException(
-                "Not enough seats available. Only " + rideEntity.getTotalAvailableSeats() + " seat(s) left.");
-        // 4c. OVERLAPPING RIDE CHECK: Is this passenger already ACCEPTED on another ride in the same time window?
+                    "Not enough seats available. Only " + rideEntity.getTotalAvailableSeats() + " seat(s) left.");
+        // 4c. OVERLAPPING RIDE CHECK: Is this passenger already ACCEPTED on another
+        // ride in the same time window?
         LocalDateTime windowStart = rideEntity.getRideDepartureTime().minusHours(1);
         LocalDateTime windowEnd = rideEntity.getRideDepartureTime().plusHours(1);
         boolean hasConflict = this.passengerRideRequestRepository
-            .hasOverlappingAcceptedRide(user.getUserId(), windowStart, windowEnd); 
+                .hasOverlappingAcceptedRide(user.getUserId(), windowStart, windowEnd);
         if (hasConflict) {
             throw new InvalidRideStateException(
-                "You are already booked on another ride during this time window. " +
-                "You cannot request more rides until your current booking is complete or cancelled.");
+                    "You are already booked on another ride during this time window. " +
+                            "You cannot request more rides until your current booking is complete or cancelled.");
         }
         // 5. DUPLICATE / RE-REQUEST LOGIC
-        //    - If PENDING or ACCEPTED → block (already requested)
-        //    - If REJECTED → allow re-request up to 4 total rejections
-        //    - If CANCELLED (due to max rejections) → permanently blocked
-        //    - If no existing request → create new
+        // - If PENDING or ACCEPTED → block (already requested)
+        // - If REJECTED → allow re-request up to 4 total rejections
+        // - If CANCELLED (due to max rejections) → permanently blocked
+        // - If no existing request → create new
         Optional<PassengerRideRequestEntity> existingRequestOpt = this.passengerRideRequestRepository
-            .findByPassengerEntity_UserIdAndRideEntity_RideId(user.getUserId(), rideEntity.getRideId());
+                .findByPassengerEntity_UserIdAndRideEntity_RideId(user.getUserId(), rideEntity.getRideId());
         PassengerRideRequestEntity passengerRideRequestEntity = null;
         if (existingRequestOpt.isPresent()) {
             PassengerRideRequestEntity existingReq = existingRequestOpt.get();
@@ -217,38 +240,46 @@ public class PassengerServiceImplementation implements PassengerService {
 
             if (currentStatus == RideRequestStatus.PENDING) {
                 log.warn("Passenger {} already has a PENDING request for ride {}", email, rideEntity.getRideId());
-                throw new InvalidRideStateException("You have already requested this ride. Please wait for the driver to respond.");
+                throw new InvalidRideStateException(
+                        "You have already requested this ride. Please wait for the driver to respond.");
             }
 
             if (currentStatus == RideRequestStatus.ACCEPTED) {
                 log.warn("Passenger {} already ACCEPTED for ride {}", email, rideEntity.getRideId());
-                throw new InvalidRideStateException("Your request for this ride has already been accepted by the driver.");
+                throw new InvalidRideStateException(
+                        "Your request for this ride has already been accepted by the driver.");
             }
 
             if (currentStatus == RideRequestStatus.CANCELLED || currentStatus == RideRequestStatus.REJECTED) {
-                int currentRejectionCount = existingReq.getRejectionCount() != null ? existingReq.getRejectionCount() : 0;
-                
+                int currentRejectionCount = existingReq.getRejectionCount() != null ? existingReq.getRejectionCount()
+                        : 0;
+
                 // 1. If it was REJECTED and reached 4, we move it to CANCELLED and block
                 if (currentStatus == RideRequestStatus.REJECTED && currentRejectionCount >= 4) {
                     existingReq.setRideRequestStatus(RideRequestStatus.CANCELLED);
                     existingReq.setRideCancelledAt(LocalDateTime.now());
                     this.passengerRideRequestRepository.save(existingReq);
                     log.warn("Passenger {} reached max rejections ({}) for ride {}. Status set to CANCELLED.",
-                        email, currentRejectionCount, rideEntity.getRideId());
+                            email, currentRejectionCount, rideEntity.getRideId());
                     throw new InvalidRideStateException(
-                        "The driver has rejected your request " + currentRejectionCount + " times. " +
-                        "You have been blocked from this ride. Please choose a different ride.");
+                            "The driver has rejected your request " + currentRejectionCount + " times. " +
+                                    "You have been blocked from this ride. Please choose a different ride.");
                 }
 
-                // 2. If it was already CANCELLED and rejections are maxed, it's a permanent block
+                // 2. If it was already CANCELLED and rejections are maxed, it's a permanent
+                // block
                 if (currentStatus == RideRequestStatus.CANCELLED && currentRejectionCount >= 4) {
-                    log.warn("Passenger {} is permanently BLOCKED from ride {} due to previous max rejections", email, rideEntity.getRideId());
+                    log.warn("Passenger {} is permanently BLOCKED from ride {} due to previous max rejections", email,
+                            rideEntity.getRideId());
                     throw new InvalidRideStateException(
-                        "You have been blocked from requesting this ride due to multiple rejections. Please choose a different ride.");
+                            "You have been blocked from requesting this ride due to multiple rejections. Please choose a different ride.");
                 }
 
-                // 3. Otherwise, allow re-request (covers both REJECTED < 4 and voluntary CANCELLED)
-                int currentNumberOfRequests = existingReq.getNumberOfRequests() != null ? existingReq.getNumberOfRequests() : 1;
+                // 3. Otherwise, allow re-request (covers both REJECTED < 4 and voluntary
+                // CANCELLED)
+                int currentNumberOfRequests = existingReq.getNumberOfRequests() != null
+                        ? existingReq.getNumberOfRequests()
+                        : 1;
                 existingReq.setNumberOfRequests(currentNumberOfRequests + 1);
                 existingReq.setRideRequestStatus(RideRequestStatus.PENDING);
                 existingReq.setRideCancelledAt(null); // Clear cancellation timestamp if reviving
@@ -258,112 +289,134 @@ public class PassengerServiceImplementation implements PassengerService {
                 existingReq.setPassengerSourceLocation(rideSharingRequestToPostedRide.getPassengerSourceLocation());
                 existingReq.setPassengerDestinationLng(rideSharingRequestToPostedRide.getPassengerDestinationLng());
                 existingReq.setPassengerDestinationLat(rideSharingRequestToPostedRide.getPassengerDestinationLat());
-                existingReq.setPassengerDestinationLocation(rideSharingRequestToPostedRide.getPassengerDestinationLocation());
+                existingReq.setPassengerDestinationLocation(
+                        rideSharingRequestToPostedRide.getPassengerDestinationLocation());
                 existingReq.setRideRequestedAt(LocalDateTime.now());
 
                 passengerRideRequestEntity = existingReq;
                 log.info("Passenger {} re-requesting ride {}. Status was {}, Attempt #{}, Rejection count: {}",
-                    email, rideEntity.getRideId(), currentStatus, passengerRideRequestEntity.getNumberOfRequests(), currentRejectionCount);
+                        email, rideEntity.getRideId(), currentStatus, passengerRideRequestEntity.getNumberOfRequests(),
+                        currentRejectionCount);
 
                 // Notify driver about the re-request
                 notificationService.createNotification(
-                    rideEntity.getDriverProfileEntity().getUser(),
-                    String.format("%s has re-requested your ride from %s to %s (Attempt #%d)", 
-                        user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress(), passengerRideRequestEntity.getNumberOfRequests()),
-                    NotificationType.RIDE_REQUESTED,
-                    passengerRideRequestEntity.getRideRequestId()
-                );
+                        rideEntity.getDriverProfileEntity().getUser(),
+                        String.format("%s has re-requested your ride from %s to %s (Attempt #%d)",
+                                user.getUserFullName(), rideEntity.getSourceAddress(),
+                                rideEntity.getDestinationAddress(), passengerRideRequestEntity.getNumberOfRequests()),
+                        NotificationType.RIDE_REQUESTED,
+                        passengerRideRequestEntity.getRideRequestId());
             } else {
                 // Catch-all for any unexpected status (COMPLETED, NOT_BOARDED, etc.)
-                log.warn("Passenger {} has unexpected status {} for ride {}", email, currentStatus, rideEntity.getRideId());
-                throw new InvalidRideStateException("Cannot request this ride. Current request status: " + currentStatus);
+                log.warn("Passenger {} has unexpected status {} for ride {}", email, currentStatus,
+                        rideEntity.getRideId());
+                throw new InvalidRideStateException(
+                        "Cannot request this ride. Current request status: " + currentStatus);
             }
         } else {
             // NO EXISTING REQUEST → CREATE NEW RIDE REQUEST
             // Calculate current estimated share
-            int currentSharingOffering = rideEntity.getTotalAvailableSeats() + 
-                this.passengerRideRequestRepository.countOnboardedSeatsForRide(rideEntity.getRideId());
+            int currentSharingOffering = rideEntity.getTotalAvailableSeats() +
+                    this.passengerRideRequestRepository.countOnboardedSeatsForRide(rideEntity.getRideId());
             BigDecimal estimatedShare = BigDecimal.ZERO;
             if (currentSharingOffering > 0) {
                 estimatedShare = rideEntity.getEstimatedFare().divide(
-                    BigDecimal.valueOf(currentSharingOffering), 2, java.math.RoundingMode.HALF_UP);
+                        BigDecimal.valueOf(currentSharingOffering), 2, java.math.RoundingMode.HALF_UP);
             }
 
             passengerRideRequestEntity = PassengerRideRequestEntity.builder()
-                .rideEntity(rideEntity)
-                .passengerEntity(user)
-                .requestedSeats(rideSharingRequestToPostedRide.getSeatsRequired())
-                .passengerSourceLng(rideSharingRequestToPostedRide.getPassengerSourceLng())
-                .passengerSourceLat(rideSharingRequestToPostedRide.getPassengerSourceLat())
-                .passengerSourceLocation(rideSharingRequestToPostedRide.getPassengerSourceLocation())
-                .passengerDestinationLng(rideSharingRequestToPostedRide.getPassengerDestinationLng())
-                .passengerDestinationLat(rideSharingRequestToPostedRide.getPassengerDestinationLat())
-                .passengerDestinationLocation(rideSharingRequestToPostedRide.getPassengerDestinationLocation())
-                .rideRequestStatus(RideRequestStatus.PENDING)
-                .rideRequestedAt(LocalDateTime.now())
-                .estimatedFareAtRequest(estimatedShare)
-                .build();
+                    .rideEntity(rideEntity)
+                    .passengerEntity(user)
+                    .requestedSeats(rideSharingRequestToPostedRide.getSeatsRequired())
+                    .passengerSourceLng(rideSharingRequestToPostedRide.getPassengerSourceLng())
+                    .passengerSourceLat(rideSharingRequestToPostedRide.getPassengerSourceLat())
+                    .passengerSourceLocation(rideSharingRequestToPostedRide.getPassengerSourceLocation())
+                    .passengerDestinationLng(rideSharingRequestToPostedRide.getPassengerDestinationLng())
+                    .passengerDestinationLat(rideSharingRequestToPostedRide.getPassengerDestinationLat())
+                    .passengerDestinationLocation(rideSharingRequestToPostedRide.getPassengerDestinationLocation())
+                    .rideRequestStatus(RideRequestStatus.PENDING)
+                    .rideRequestedAt(LocalDateTime.now())
+                    .estimatedFareAtRequest(estimatedShare)
+                    .build();
             log.info("New ride request created by passenger {} for ride {}", email, rideEntity.getRideId());
-            
+
             // Notify driver
             notificationService.createNotification(
-                rideEntity.getDriverProfileEntity().getUser(),
-                String.format("New ride request from %s for your ride from %s to %s", 
-                    user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
-                NotificationType.RIDE_REQUESTED,
-                passengerRideRequestEntity.getRideRequestId()
-            );
+                    rideEntity.getDriverProfileEntity().getUser(),
+                    String.format("New ride request from %s for your ride from %s to %s",
+                            user.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
+                    NotificationType.RIDE_REQUESTED,
+                    passengerRideRequestEntity.getRideRequestId());
         }
         // 7. SAVE & POST-SAVE OPERATIONS
         this.passengerRideRequestRepository.save(passengerRideRequestEntity);
         log.info("Ride request saved for passenger {} on ride {}. Request ID: {}, Status: {}, numberOfRequests: {}",
-            email, rideEntity.getRideId(), passengerRideRequestEntity.getRideRequestId(),
-            passengerRideRequestEntity.getRideRequestStatus(), passengerRideRequestEntity.getNumberOfRequests());
-        // 7a. Invalidate driver's ride request cache (so driver sees the new request immediately)
+                email, rideEntity.getRideId(), passengerRideRequestEntity.getRideRequestId(),
+                passengerRideRequestEntity.getRideRequestStatus(), passengerRideRequestEntity.getNumberOfRequests());
+        // Invalidate driver's ride request cache (so driver sees the new request
+        // immediately)
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId() + ":unified");
 
-        // 7b. Invalidate passenger's own ride updates cache (so modal shows PENDING immediately)
+        // Invalidate passenger's own ride updates cache (so modal shows PENDING
+        // immediately)
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
+
+        // 1. Prepare the data packet
+        Map<String, Object> data = new HashMap<>();
+        data.put("rideId", rideEntity.getRideId());
+        data.put("rideRequestId", passengerRideRequestEntity.getRideRequestId());
+        data.put("status", "PENDING");
+        data.put("passengerName", user.getUserFullName());
+        // 2. Send the whole packet!
+        messagingTemplate.convertAndSendToUser(
+                rideEntity.getDriverProfileEntity().getUser().getEmail(),
+                "/queue/ride-requests",
+                data);
         // 8. BUILD & RETURN RESPONSE
         return RideSharingResponseToPostedRide.builder()
-            .rideId(rideEntity.getRideId())
-            .rideRequestId(passengerRideRequestEntity.getRideRequestId())
-            .passengerName(user.getUserFullName())
-            .passengerSourceAddress(passengerRideRequestEntity.getPassengerSourceLocation())
-            .passengerDestinationAddress(passengerRideRequestEntity.getPassengerDestinationLocation())
-            .requestStatus(passengerRideRequestEntity.getRideRequestStatus().toString())
-            .requestedSeats(passengerRideRequestEntity.getRequestedSeats())
-            .requestedAt(passengerRideRequestEntity.getRideRequestedAt())
-            .build();
+                .rideId(rideEntity.getRideId())
+                .rideRequestId(passengerRideRequestEntity.getRideRequestId())
+                .passengerName(user.getUserFullName())
+                .passengerSourceAddress(passengerRideRequestEntity.getPassengerSourceLocation())
+                .passengerDestinationAddress(passengerRideRequestEntity.getPassengerDestinationLocation())
+                .requestStatus(passengerRideRequestEntity.getRideRequestStatus().toString())
+                .requestedSeats(passengerRideRequestEntity.getRequestedSeats())
+                .requestedAt(passengerRideRequestEntity.getRideRequestedAt())
+                .build();
     }
+
     // get posted ride sharing request updates
     @Override
     public List<RideRequestUpdatesDTO> getRideRequestUpdates(String email) {
         String cacheKey = RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email;
         @SuppressWarnings("unchecked")
-        List<RideRequestUpdatesDTO> cachedUpdates = (List<RideRequestUpdatesDTO>) redisTemplate.opsForValue().get(cacheKey);
-        if(cachedUpdates != null)
+        List<RideRequestUpdatesDTO> cachedUpdates = (List<RideRequestUpdatesDTO>) redisTemplate.opsForValue()
+                .get(cacheKey);
+        if (cachedUpdates != null)
             return cachedUpdates;
         UserEntity userEntity = userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(userEntity);
         LocalDateTime windowStart = LocalDateTime.now().minusWeeks(1);
         LocalDateTime windowEnd = LocalDateTime.now().plusWeeks(1);
-        List<RideRequestUpdatesDTO> rideRequestUpdates = this.passengerRideRequestRepository.findRideRequestUpdatesByPassengerId(
-            userEntity.getUserId(), windowStart, windowEnd);
-        this.redisTemplate.opsForValue().set(cacheKey, rideRequestUpdates, RIDE_REQUEST_UPDATES_CACHE_TTL, TimeUnit.MINUTES);
+        List<RideRequestUpdatesDTO> rideRequestUpdates = this.passengerRideRequestRepository
+                .findRideRequestUpdatesByPassengerId(
+                        userEntity.getUserId(), windowStart, windowEnd);
+        this.redisTemplate.opsForValue().set(cacheKey, rideRequestUpdates, RIDE_REQUEST_UPDATES_CACHE_TTL,
+                TimeUnit.MINUTES);
         return rideRequestUpdates;
     }
+
     @Override
     @Transactional
     public void cancelRideRequest(String email, Long rideRequestId) {
         UserEntity passengerEntity = this.userEntityRepository.findByEmail(email)
-        .orElseThrow(() -> new UserNotFoundException("User not found."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passengerEntity);
-        
+
         PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
-            .findById(rideRequestId)
-            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+                .findById(rideRequestId)
+                .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
 
         if (!rideRequestEntity.getPassengerEntity().getUserId().equals(passengerEntity.getUserId())) {
             throw new AccessDeniedException("You are not authorized to cancel this ride request.");
@@ -373,19 +426,23 @@ public class PassengerServiceImplementation implements PassengerService {
         if (currentStatus == RideRequestStatus.CANCELLED) {
             throw new InvalidRideStateException("Ride request is already CANCELLED.");
         }
-        if (currentStatus == RideRequestStatus.COMPLETED || currentStatus == RideRequestStatus.REJECTED || currentStatus == RideRequestStatus.NOT_BOARDED) {
+        if (currentStatus == RideRequestStatus.COMPLETED || currentStatus == RideRequestStatus.REJECTED
+                || currentStatus == RideRequestStatus.NOT_BOARDED) {
             throw new InvalidRideStateException("Cannot cancel a ride request that is " + currentStatus);
         }
 
         RideEntity rideEntity = rideRequestEntity.getRideEntity();
         if (currentStatus == RideRequestStatus.ACCEPTED) {
-            rideEntity.setTotalAvailableSeats(rideEntity.getTotalAvailableSeats() + rideRequestEntity.getRequestedSeats());
-            if (rideEntity.getRideStatus() == RideStatus.RIDE_FULL) 
+            rideEntity.setTotalAvailableSeats(
+                    rideEntity.getTotalAvailableSeats() + rideRequestEntity.getRequestedSeats());
+            if (rideEntity.getRideStatus() == RideStatus.RIDE_FULL)
                 rideEntity.setRideStatus(RideStatus.RIDE_POSTED);
             this.rideEntityRepository.save(rideEntity);
-            log.info("Seats restored for ride {}. New available seats: {}", rideEntity.getRideId(), rideEntity.getTotalAvailableSeats());
+            log.info("Seats restored for ride {}. New available seats: {}", rideEntity.getRideId(),
+                    rideEntity.getTotalAvailableSeats());
 
-            // Since seats changed, invalidate all global available ride caches so they reflect the new seat count
+            // Since seats changed, invalidate all global available ride caches so they
+            // reflect the new seat count
             java.util.Set<String> availableRideKeys = this.redisTemplate.keys("rides:available*");
             if (availableRideKeys != null && !availableRideKeys.isEmpty()) {
                 this.redisTemplate.delete(availableRideKeys);
@@ -398,61 +455,78 @@ public class PassengerServiceImplementation implements PassengerService {
         rideRequestEntity.setRideCancelledAt(LocalDateTime.now());
         this.passengerRideRequestRepository.save(rideRequestEntity);
         log.info("Ride request {} cancelled by passenger {}", rideRequestId, email);
-        
+
         // Notify Driver
         notificationService.createNotification(
-            rideEntity.getDriverProfileEntity().getUser(),
-            String.format("Passenger %s has cancelled their request for your ride from %s to %s", 
-            passengerEntity.getUserFullName(), rideEntity.getSourceAddress(), rideEntity.getDestinationAddress()),
-            NotificationType.RIDE_CANCELLED,
-            rideRequestId
-        );
-        
+                rideEntity.getDriverProfileEntity().getUser(),
+                String.format("Passenger %s has cancelled their request for your ride from %s to %s",
+                        passengerEntity.getUserFullName(), rideEntity.getSourceAddress(),
+                        rideEntity.getDestinationAddress()),
+                NotificationType.RIDE_CANCELLED,
+                rideRequestId);
+
         // Invalidate caches
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + email);
         this.redisTemplate.delete(ACTIVE_RIDES_REQUESTS_CACHE_PREFIX + rideEntity.getRideId() + ":unified");
+        // 1. Prepare the data packet
+        Map<String, Object> data = new HashMap<>();
+        data.put("rideId", rideEntity.getRideId());
+        data.put("rideRequestId", rideRequestEntity.getRideRequestId());
+        data.put("status", "CANCELLED");
+        data.put("passengerName", passengerEntity.getUserFullName());
+        // 2. Send the whole packet!
+        messagingTemplate.convertAndSendToUser(
+                rideEntity.getDriverProfileEntity().getUser().getEmail(),
+                "/queue/ride-requests",
+                data);
     }
+
     // get accepted driver details for a passenger's ride request
     @SuppressWarnings("unchecked")
     @Override
     public List<RideAcceptedDriverDTO> getRideAcceptedDrivers(String email, Long rideRequestId) {
         UserEntity userEntity = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(userEntity);
         String cacheKey = RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX + userEntity.getUserId() + ":" + rideRequestId;
         try {
-            List<RideAcceptedDriverDTO> cached = (List<RideAcceptedDriverDTO>) this.redisTemplate.opsForValue().get(cacheKey);
+            List<RideAcceptedDriverDTO> cached = (List<RideAcceptedDriverDTO>) this.redisTemplate.opsForValue()
+                    .get(cacheKey);
             if (cached != null)
                 return cached;
         } catch (Exception e) {
-            log.error("Redis error fetching accepted drivers cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
+            log.error("Redis error fetching accepted drivers cache for rideRequestId {}: {}", rideRequestId,
+                    e.getMessage());
         }
         List<RideAcceptedDriverDTO> drivers = this.passengerRideRequestRepository
-            .findRideAcceptedDriversByPassengerId(userEntity.getUserId(), rideRequestId);
+                .findRideAcceptedDriversByPassengerId(userEntity.getUserId(), rideRequestId);
         if (!drivers.isEmpty()) {
             try {
                 this.redisTemplate.opsForValue().set(cacheKey, drivers, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
             } catch (Exception e) {
-                log.error("Redis error storing accepted drivers cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
+                log.error("Redis error storing accepted drivers cache for rideRequestId {}: {}", rideRequestId,
+                        e.getMessage());
             }
         }
         return drivers;
     }
+
     // get otp for the ride
     @Override
-    public String getOtp(String email, Long rideRequestId){
+    public String getOtp(String email, Long rideRequestId) {
         UserEntity passenger = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passenger);
         PassengerRideRequestEntity rideRequestEntity = this.passengerRideRequestRepository
-            .findById(rideRequestId)
-            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+                .findById(rideRequestId)
+                .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
         if (!rideRequestEntity.getPassengerEntity().getUserId().equals(passenger.getUserId())) {
             throw new AccessDeniedException("You are not authorized to get OTP for this ride request.");
         }
         if (!rideRequestEntity.getIsDriverReachedPickupLocation() ||
-            rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
-            throw new InvalidRideStateException("Cannot get OTP for a ride request that is not DRIVER_REACHED_PICKUP_LOCATION.");
+                rideRequestEntity.getRideRequestStatus() != RideRequestStatus.DRIVER_REACHED_PICKUP_LOCATION) {
+            throw new InvalidRideStateException(
+                    "Cannot get OTP for a ride request that is not DRIVER_REACHED_PICKUP_LOCATION.");
         }
         if (rideRequestEntity.getOtp() == null) {
             throw new InvalidRideStateException("OTP has not been generated yet. Please wait for driver arrival.");
@@ -465,62 +539,67 @@ public class PassengerServiceImplementation implements PassengerService {
         } catch (Exception e) {
             log.error("Redis error fetching OTP cache for rideRequestId {}: {}", rideRequestId, e.getMessage());
         }
-        this.redisTemplate.opsForValue().set(cacheKey, rideRequestEntity.getOtp(), OTP_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        this.redisTemplate.opsForValue().set(cacheKey, rideRequestEntity.getOtp(), OTP_CACHE_TTL_MINUTES,
+                TimeUnit.MINUTES);
         return rideRequestEntity.getOtp();
     }
-    
+
     @Override
     public PassengerRideReceiptDTO getRideReceipt(String email, Long rideRequestId) {
         UserEntity user = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
-        
-        return this.passengerRideRequestRepository.findRideReceiptByRequestIdAndPassengerId(rideRequestId, user.getUserId())
-            .orElseThrow(() -> new NoEntryFoundException("Receipt not found for this request."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
+
+        return this.passengerRideRequestRepository
+                .findRideReceiptByRequestIdAndPassengerId(rideRequestId, user.getUserId())
+                .orElseThrow(() -> new NoEntryFoundException("Receipt not found for this request."));
     }
+
     @Transactional
     @Override
-    public String rateDriver(String email, UserRateRequestDTO userRateRequestDTO){
-        if(userRateRequestDTO.getRating() < 1 || userRateRequestDTO.getRating() > 5)
+    public String rateDriver(String email, UserRateRequestDTO userRateRequestDTO) {
+        if (userRateRequestDTO.getRating() < 1 || userRateRequestDTO.getRating() > 5)
             throw new InvalidRideStateException("Rating must be between 1 and 5.");
 
         UserEntity passenger = this.userEntityRepository.findByEmail(email)
-            .orElseThrow(() -> new UserNotFoundException("User not found."));
-        
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
+
         validatePassengerAccount(passenger);
-        
+
         PassengerRideRequestEntity passengerRideRequestEntity = this.passengerRideRequestRepository
-            .findByRideRequestIdAndPassengerEntity_UserId(userRateRequestDTO.getRideRequestId(), passenger.getUserId())
-            .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
-        
-        if(passengerRideRequestEntity.getRideRequestStatus() != RideRequestStatus.COMPLETED)
+                .findByRideRequestIdAndPassengerEntity_UserId(userRateRequestDTO.getRideRequestId(),
+                        passenger.getUserId())
+                .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
+
+        if (passengerRideRequestEntity.getRideRequestStatus() != RideRequestStatus.COMPLETED)
             throw new InvalidRideStateException("Ride request is not completed.");
 
         RideEntity rideEntity = passengerRideRequestEntity.getRideEntity();
-        if(rideEntity.getRideStatus() != RideStatus.RIDE_COMPLETED)
+        if (rideEntity.getRideStatus() != RideStatus.RIDE_COMPLETED)
             throw new InvalidRideStateException("Ride is not completed yet.");
 
         Optional<UserRatingEntity> userRatingEntity = this.userRatingRepository
-            .findByRideEntity_RideIdAndRideRequestEntity_RideRequestId
-            (rideEntity.getRideId(), passengerRideRequestEntity.getRideRequestId());
-        
-        if(userRatingEntity.isPresent())
+                .findByRideEntity_RideIdAndRideRequestEntity_RideRequestId(rideEntity.getRideId(),
+                        passengerRideRequestEntity.getRideRequestId());
+
+        if (userRatingEntity.isPresent())
             throw new InvalidRideStateException("Ride request already rated.");
 
         UserRatingEntity ratingEntity = UserRatingEntity.builder()
-            .rideEntity(rideEntity)
-            .rideRequestEntity(passengerRideRequestEntity)
-            .rating(userRateRequestDTO.getRating())
-            .review(userRateRequestDTO.getComment())
-            .ratedUser(rideEntity.getDriverProfileEntity().getUser())
-            .ratedBy(passenger)
-            .ratedAt(LocalDateTime.now())
-            .build();
+                .rideEntity(rideEntity)
+                .rideRequestEntity(passengerRideRequestEntity)
+                .rating(userRateRequestDTO.getRating())
+                .review(userRateRequestDTO.getComment())
+                .ratedUser(rideEntity.getDriverProfileEntity().getUser())
+                .ratedBy(passenger)
+                .ratedAt(LocalDateTime.now())
+                .build();
 
-        UserEntity driver = this.userEntityRepository.findWithPessimisticLockById(rideEntity.getDriverProfileEntity().getUser().getUserId())
-            .orElseThrow(() -> new UserNotFoundException("Driver user not found."));
+        UserEntity driver = this.userEntityRepository
+                .findWithPessimisticLockById(rideEntity.getDriverProfileEntity().getUser().getUserId())
+                .orElseThrow(() -> new UserNotFoundException("Driver user not found."));
 
-        driver.setAverageRating((driver.getTotalRatingsCount() * driver.getAverageRating() 
-        + userRateRequestDTO.getRating()) / (driver.getTotalRatingsCount() + 1));
+        driver.setAverageRating((driver.getTotalRatingsCount() * driver.getAverageRating()
+                + userRateRequestDTO.getRating()) / (driver.getTotalRatingsCount() + 1));
         driver.setTotalRatingsCount(driver.getTotalRatingsCount() + 1);
 
         this.userRatingRepository.save(ratingEntity);
@@ -528,47 +607,52 @@ public class PassengerServiceImplementation implements PassengerService {
 
         // Cache eviction
         this.redisTemplate.delete(DRIVER_PROFILE_CACHE_PREFIX + driver.getEmail());
-        String cacheKey = RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX + passenger.getUserId() + ":" + userRateRequestDTO.getRideRequestId();
+        String cacheKey = RIDE_ACCEPTED_DRIVERS_CACHE_PREFIX + passenger.getUserId() + ":"
+                + userRateRequestDTO.getRideRequestId();
         try {
             this.redisTemplate.delete(cacheKey);
         } catch (Exception e) {
-            log.error("Redis error deleting accepted drivers cache for rideRequestId {}: {}", userRateRequestDTO.getRideRequestId(), e.getMessage());
+            log.error("Redis error deleting accepted drivers cache for rideRequestId {}: {}",
+                    userRateRequestDTO.getRideRequestId(), e.getMessage());
         }
-        
+
         return "Rating given successfully.";
     }
-    
+
     private static final String PASSENGER_RIDE_HISTORY_CACHE_KEY = "passenger_ride_history_v2";
     private static final long PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS = 300; // 5 minutes
+
     @SuppressWarnings("unchecked")
     @Override
     public List<PassengerRideHistoryDTO> getPassengerRideHistory(String email) {
         UserEntity passenger = this.userEntityRepository.findByEmail(email)
-        .orElseThrow(() -> new UserNotFoundException("User not found."));
+                .orElseThrow(() -> new UserNotFoundException("User not found."));
         validatePassengerAccount(passenger);
         String passengerRideHistoryCacheKey = PASSENGER_RIDE_HISTORY_CACHE_KEY + ":" + passenger.getUserId();
         List<PassengerRideHistoryDTO> passengerRideHistoryDTOS = (List<PassengerRideHistoryDTO>) this.redisTemplate
-        .opsForValue().get(passengerRideHistoryCacheKey);
-        if(passengerRideHistoryDTOS != null)
+                .opsForValue().get(passengerRideHistoryCacheKey);
+        if (passengerRideHistoryDTOS != null)
             return passengerRideHistoryDTOS;
         passengerRideHistoryDTOS = new java.util.ArrayList<>(this.passengerRideRequestRepository
-            .getPassengerRideHistoryDTO(passenger.getUserId()));
-            if(passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
-                throw new NoEntryFoundException("No ride history present.");
-            this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS, PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
-            return passengerRideHistoryDTOS;
-        }
+                .getPassengerRideHistoryDTO(passenger.getUserId()));
+        if (passengerRideHistoryDTOS == null || passengerRideHistoryDTOS.isEmpty())
+            throw new NoEntryFoundException("No ride history present.");
+        this.redisTemplate.opsForValue().set(passengerRideHistoryCacheKey, passengerRideHistoryDTOS,
+                PASSENGER_RIDE_HISTORY_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+        return passengerRideHistoryDTOS;
+    }
+
     // helper methods
     // validate passenger account
     private void validatePassengerAccount(UserEntity userEntity) {
-        if(!userEntity.getIsEmailVerified())
+        if (!userEntity.getIsEmailVerified())
             throw new AccessDeniedException("Account is not verified.");
-        if(userEntity.getIsAdminSuspendedAccount() || 
-            userEntity.getAccountStatus() == UserAccountStatus.SUSPENDED)
+        if (userEntity.getIsAdminSuspendedAccount() ||
+                userEntity.getAccountStatus() == UserAccountStatus.SUSPENDED)
             throw new AccessDeniedException("Account is suspended by ADMIN.");
-        if(userEntity.getAccountStatus() == UserAccountStatus.INACTIVE)
+        if (userEntity.getAccountStatus() == UserAccountStatus.INACTIVE)
             throw new AccessDeniedException("Account is inactive.");
-        if(userEntity.getAccountStatus() == UserAccountStatus.DELETED)
+        if (userEntity.getAccountStatus() == UserAccountStatus.DELETED)
             throw new AccessDeniedException("Account is deleted.");
     }
 
