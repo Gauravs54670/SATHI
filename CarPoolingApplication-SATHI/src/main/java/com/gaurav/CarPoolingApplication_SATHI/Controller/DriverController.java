@@ -276,4 +276,9 @@ public class DriverController {
         String email = authentication.getName();
         return ResponseEntity.ok(Map.of("data", this.driverService.getTotalCancelledRides(email)));
     }
+    @GetMapping("/in-progress-and-posted-rides")
+    public ResponseEntity<?> getAllInProgressAndPostedRides(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(Map.of("data", this.driverService.getAllInProgressAndPostedRides(email)));
+    }
 }

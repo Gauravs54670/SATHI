@@ -40,6 +40,7 @@ public class JWTAuthenticationFilter extends OncePerRequestFilter {
 
         String requestPath = request.getServletPath();
         if (requestPath.startsWith("/auth") ||
+                requestPath.startsWith("/ws-sathi") ||
                 requestPath.startsWith("/v3/api-docs") ||
                 requestPath.startsWith("/swagger-ui")) {
             filterChain.doFilter(request, response);

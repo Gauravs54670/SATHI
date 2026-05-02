@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverInProgressAndPostedRides;
+import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -180,4 +182,19 @@ public interface RideEntityRepository extends JpaRepository<RideEntity, Long> {
             ORDER BY r.rideUpdatedAt DESC
             """)
     List<RideEntity> findByDriverProfileId(@Param("driverProfileId") Long driverProfileId);
+    @Query("""
+            SELECT NEW com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverInProgressAndPostedRides(
+                r.rideId,
+                r.sourceAddress,
+                r.destinationAddress,
+                r.rideDepartureTime,
+                r.rideStatus,
+                r.totalPassengersSharedRide
+            )
+            FROM RideEntity r
+            WHERE r.driverProfileEntity.driverProfileId = :driverProfileId
+            AND r.rideStatus IN ('RIDE_POSTED', 'RIDE_IN_PROGRESS')
+            ORDER BY r.rideUpdatedAt DESC
+            """)
+    List<DriverInProgressAndPostedRides> getInProgressAndPostedRides(@Param("driverProfileId") Long driverProfileId);
 }

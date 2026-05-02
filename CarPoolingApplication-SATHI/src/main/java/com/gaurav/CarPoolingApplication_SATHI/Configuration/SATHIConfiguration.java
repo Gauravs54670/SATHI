@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -66,6 +68,16 @@ public class SATHIConfiguration {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    // Register a CorsFilter with highest precedence so it runs BEFORE Spring Security.
+    // This ensures SockJS /info and /iframe requests get proper CORS headers.
+    @Bean
+    public FilterRegistrationBean<org.springframework.web.filter.CorsFilter> corsFilterRegistration() {
+        FilterRegistrationBean<org.springframework.web.filter.CorsFilter> bean =
+                new FilterRegistrationBean<>(new org.springframework.web.filter.CorsFilter(corsConfigurationSource()));
+        bean.setOrder(org.springframework.core.Ordered.HIGHEST_PRECEDENCE);
+        return bean;
     }
 
     @Bean

@@ -11,18 +11,14 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.*;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverAcceptedRideRequestDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.PassengerRideBookingRequestsDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.InvalidRideStateException;
 import com.gaurav.CarPoolingApplication_SATHI.Exception.NoActiveRideFoundException;
@@ -317,7 +313,7 @@ public class DriverServiceImplementation implements DriverService {
         return mapRideEntityToRidePostResponseDTO(rideEntity);
     }
 
-    // check if ride is posted by driver
+    // check if a ride is posted by driver
     @Override
     public List<DriverPostedRides> getActiveRideForDriver(String email) {
         // Check Cache
@@ -424,7 +420,7 @@ public class DriverServiceImplementation implements DriverService {
         // Cache the combined response
         this.redisTemplate.opsForValue().set(cacheKey, response, ACTIVE_RIDES_REQUESTS_CACHE_TTL_MINUTES,
                 TimeUnit.MINUTES);
-
+                
         return response;
     }
 
@@ -592,6 +588,8 @@ public class DriverServiceImplementation implements DriverService {
                 .orElseThrow(() -> new NoEntryFoundException("Ride request not found."));
         if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getRideId(), rideId))
             throw new NoEntryFoundException("Ride request not found.");
+        if(passengerRideRequestEntity.getRejectionCount() >=3)
+            throw new NoEntryFoundException("Ride request is rejected. Driver is not wiling to give ride.");
         if (!Objects.equals(passengerRideRequestEntity.getRideEntity().getDriverProfileEntity().getUser().getUserId(),
                 driverProfileEntity.getUser().getUserId()))
             throw new NoEntryFoundException("You are not authorized to access this ride.");
@@ -758,7 +756,7 @@ public class DriverServiceImplementation implements DriverService {
                 rideEntity.getRideStatus() == RideStatus.RIDE_IN_PROGRESS ||
                 rideEntity.getRideStatus() == RideStatus.RIDE_STARTED))
             throw new InvalidRideStateException(
-                    "Ride cannot be cancelled. Only posted, in progress or started rides can be cancelled.");
+                    "Ride cannot be cancelled. Only POSTED, IN_PROGRESS, STARTED rides can be cancelled.");
         List<PassengerRideRequestEntity> passengerRideRequests = this.passengerRideRequestRepository
                 .findByRideEntity_RideIdAndRideRequestStatus(rideId, RideRequestStatus.ACCEPTED);
         for (PassengerRideRequestEntity request : passengerRideRequests) {
@@ -881,6 +879,12 @@ public class DriverServiceImplementation implements DriverService {
         rideGPSUpdatesDTO.setTotalDistanceTraveled(previousTotalDistance);
         this.redisTemplate.opsForValue().set(rideGPSUpdatesCacheKey, rideGPSUpdatesDTO,
                 RIDE_GPS_UPDATES_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+
+        // Broadcast GPS to all passengers in this ride
+        messagingTemplate.convertAndSend(
+                "/topic/ride/" + rideGPSUpdatesDTO.getRideId() + "/gps",
+                rideGPSUpdatesDTO
+        );
     }
 
     // reached passenger pickup
@@ -927,10 +931,16 @@ public class DriverServiceImplementation implements DriverService {
                 NotificationType.OTP_GENERATED,
                 rideReqeustEntity.getRideRequestId());
 
-        // Fix for Error 1: Invalidate Passenger's Update List cache (so they see
-        // ARRIVED status instantly)
+        // Invalidate Passenger's Update List cache
         String passengerEmail = rideReqeustEntity.getPassengerEntity().getEmail();
         this.redisTemplate.delete(RIDE_REQUEST_UPDATES_CACHE_KEY + ":" + passengerEmail);
+
+        // Notify Passenger via WebSocket
+        messagingTemplate.convertAndSendToUser(
+                passengerEmail,
+                "/queue/ride/" + rideId + "/updates",
+                "DRIVER_ARRIVED"
+        );
     }
 
     // verify otp
@@ -961,6 +971,13 @@ public class DriverServiceImplementation implements DriverService {
         // 1. Reset arrival flag so frontend stops fetching OTP
         rideRequestEntity.setIsDriverReachedPickupLocation(false);
         this.passengerRideRequestRepository.save(rideRequestEntity);
+
+        // Notify Passenger
+        messagingTemplate.convertAndSendToUser(
+                rideRequestEntity.getPassengerEntity().getEmail(),
+                "/queue/ride/" + rideId + "/updates",
+                "BOARDED"
+        );
 
         // 2. Invalidate Passenger Cache so UI sees ONBOARDED immediately
         String passengerEmail = rideRequestEntity.getPassengerEntity().getEmail();
@@ -1234,7 +1251,6 @@ public class DriverServiceImplementation implements DriverService {
     // get driver ride history dto
     private static final String DRIVER_RIDE_HISTORY_CACHE_KEY = "driver_ride_history_v2";
     private static final long CACHE_TTL_SECONDS = 300; // 5 minutes
-
     @SuppressWarnings("unchecked")
     @Override
     public List<DriverRideHistoryDTO> driverRideHistoryDTO(String email) {
@@ -1268,7 +1284,7 @@ public class DriverServiceImplementation implements DriverService {
         this.redisTemplate.opsForValue().set(rideHistoryCacheKey, rideHistory, CACHE_TTL_SECONDS, TimeUnit.SECONDS);
         return rideHistory;
     }
-
+//    get total completed rides
     @Override
     public Integer getTotalCompletedRides(String email) {
         DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
@@ -1277,7 +1293,7 @@ public class DriverServiceImplementation implements DriverService {
         validateUserAccount(user);
         return driverProfile.getTotalCompletedRides();
     }
-
+//    get total earning of ride
     @Override
     public BigDecimal getTotalEarnings(String email) {
         DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
@@ -1286,7 +1302,7 @@ public class DriverServiceImplementation implements DriverService {
         validateUserAccount(user);
         return driverProfile.getTotalEarnings();
     }
-
+//    get total canceled rides of driver
     @Override
     public Integer getTotalCancelledRides(String email) {
         DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
@@ -1294,6 +1310,30 @@ public class DriverServiceImplementation implements DriverService {
         UserEntity user = driverProfile.getUser();
         validateUserAccount(user);
         return driverProfile.getTotalCancelledRides();
+    }
+//    get all in-progress and posted rides of driver
+    private static final String DRIVER_IN_PROGRESS_AND_POSTED_RIDE = "driver:in-progress-and-posted-rides";
+    private static final long DRIVER_IN_PROGRESS_AND_POSTED_RIDE_TTL_MINUTES = 15;
+    @SuppressWarnings({ "unchecked" })
+@Override
+    public List<DriverInProgressAndPostedRides> getAllInProgressAndPostedRides(String email) {
+        DriverProfileEntity driverProfile = this.driverEntityRepository.findByUserEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("Driver profile not found."));
+        UserEntity user = driverProfile.getUser();
+        validateUserAccount(user);
+        String inProgressAndPostedCacheKey = DRIVER_IN_PROGRESS_AND_POSTED_RIDE + ":" 
+                + driverProfile.getDriverProfileId();
+        List<DriverInProgressAndPostedRides> inProgressAndPostedRides = (List<DriverInProgressAndPostedRides>) this.redisTemplate.opsForValue()
+                .get(inProgressAndPostedCacheKey);
+        if(inProgressAndPostedRides != null)
+            return inProgressAndPostedRides;
+        inProgressAndPostedRides = this.rideEntityRepository
+                .getInProgressAndPostedRides(driverProfile.getDriverProfileId());
+        if(inProgressAndPostedRides == null || inProgressAndPostedRides.isEmpty())
+            throw new NoEntryFoundException("No POSTED and IN_PROGRESS rides found. Please post a ride to get the rides.");
+        this.redisTemplate.opsForValue().set(inProgressAndPostedCacheKey,inProgressAndPostedRides
+            ,DRIVER_IN_PROGRESS_AND_POSTED_RIDE_TTL_MINUTES,TimeUnit.MINUTES);
+        return inProgressAndPostedRides;
     }
 
     // helper methods

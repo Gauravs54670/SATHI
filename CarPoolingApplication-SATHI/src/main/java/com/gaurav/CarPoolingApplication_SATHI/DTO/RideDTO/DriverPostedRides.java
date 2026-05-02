@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// used for queing the driver's posted rides based on current or future time stamps
+// used for queuing the driver's posted rides based on current or future time stamps
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder

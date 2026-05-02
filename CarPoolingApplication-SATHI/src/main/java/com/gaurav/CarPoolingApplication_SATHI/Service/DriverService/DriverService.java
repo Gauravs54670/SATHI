@@ -2,13 +2,10 @@ package com.gaurav.CarPoolingApplication_SATHI.Service.DriverService;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.*;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.*;
 import org.springframework.stereotype.Service;
 
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverProfileDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAcceptedPassengerDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.RideAllBookingRequestsDTO;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.UpdateDriverProfileRequest;
 import com.gaurav.CarPoolingApplication_SATHI.DTO.UserDTO.UserRateRequestDTO;
 @Service
 public interface DriverService {
@@ -34,4 +31,5 @@ public interface DriverService {
     Integer getTotalCompletedRides(String email);
     BigDecimal getTotalEarnings(String email);
     Integer getTotalCancelledRides(String email);
+    List<DriverInProgressAndPostedRides> getAllInProgressAndPostedRides(String email);
 }
