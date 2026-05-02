@@ -5,10 +5,11 @@ import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import CustomSelect from "@/components/CustomSelect";
-import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide, fetchRideOtp, cancelRide } from "@/lib/api";
+import { fetchUserRoles, fetchDriverProfile, changeDriverAvailabilityStatus, checkHasActiveRide, fetchActiveRides, fetchRideRequestUpdates, cancelRideRequest, RideRequestUpdatesDTO, startRide, DriverPostedRide, fetchRideOtp, cancelRide, fetchInProgressAndPostedRides, DriverInProgressAndPostedRides } from "@/lib/api";
 import { startLiveTracking, stopLiveTracking } from "@/lib/rideTracker";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 import Toast from "@/components/Toast";
+import { useSocket } from "@/context/SocketContext";
 
 export default function DashboardPage() {
   const { user, isLoggedIn, isLoading } = useAuth();
@@ -30,74 +31,99 @@ export default function DashboardPage() {
   const [passengerRequests, setPassengerRequests] = useState<RideRequestUpdatesDTO[]>([]);
   const [isFetchingRequests, setIsFetchingRequests] = useState(false);
   const [driverProfile, setDriverProfile] = useState<any>(null);
+  const [inProgressRides, setInProgressRides] = useState<DriverInProgressAndPostedRides[]>([]);
+  const [isFetchingInProgress, setIsFetchingInProgress] = useState(false);
+  const [showInProgressList, setShowInProgressList] = useState(false);
 
   // Synchronized Boarding State (Passenger)
   const [incomingBoardingRide, setIncomingBoardingRide] = useState<RideRequestUpdatesDTO | null>(null);
   const [incomingOtp, setIncomingOtp] = useState<string | null>(null);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
 
+  const { connected, subscribe } = useSocket();
+
   useEffect(() => {
     let mounted = true;
-    let pollInterval: NodeJS.Timeout;
-
     if (isLoggedIn && user) {
-      // 1. Initial State Fetch
-      fetchUserRoles()
-        .then(roles => {
-          if (!mounted) return;
-          if (roles.includes("DRIVER")) {
-            setIsDriver(true);
-            fetchDriverProfile().then(p => {
-              if (p && mounted) {
-                setDriverProfile(p);
-                setAvailabilityStatus(p.driverAvailabilityStatus || "OFF_DUTY");
-              }
-            });
-            checkHasActiveRide().then(hasRide => setHasActiveRide(hasRide));
-          }
-          
-          if (user.isEmailVerified) {
-            fetchRideRequestUpdates().then(requests => {
-              if (mounted) {
-                setPassengerRequests(requests.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
-              }
-            });
-          }
-        });
-
-      // 2. Synchronized Status Polling (Every 3 seconds)
-      pollInterval = setInterval(async () => {
-        try {
-          if (!user.isEmailVerified) return;
-          const updates = await fetchRideRequestUpdates();
-          if (!mounted) return;
-
-          // Include COMPLETED requests for receipt access
-          setPassengerRequests(updates.filter(r => r.rideRequestStatus !== 'CANCELLED'));
-
-          // Check for arrival (OTP phase)
-          const arrivingRide = updates.find(r => r.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION');
-          if (arrivingRide) {
-            if (!incomingBoardingRide || incomingBoardingRide.rideRequestedId !== arrivingRide.rideRequestedId || !incomingOtp) {
-              const otp = await fetchRideOtp(arrivingRide.rideRequestedId);
-              setIncomingOtp(otp);
-              setIncomingBoardingRide(arrivingRide);
-            }
-          } else {
-            setIncomingBoardingRide(null);
-            setIncomingOtp(null);
-          }
-        } catch (err) {
-          console.error("Dashboard sync poll error", err);
-        }
-      }, 3000);
+      loadInitialData();
     }
-
     return () => { 
       mounted = false; 
-      if (pollInterval) clearInterval(pollInterval);
     };
   }, [isLoggedIn, user]);
+
+  const loadInitialData = async () => {
+    if (!user) return;
+    try {
+      const roles = await fetchUserRoles();
+      if (roles.includes("DRIVER")) {
+        setIsDriver(true);
+        const p = await fetchDriverProfile();
+        if (p) {
+          setDriverProfile(p);
+          setAvailabilityStatus(p.driverAvailabilityStatus || "OFF_DUTY");
+        }
+        const hasRide = await checkHasActiveRide();
+        setHasActiveRide(hasRide);
+      }
+      
+      if (user.isEmailVerified) {
+        const requests = await fetchRideRequestUpdates();
+        setPassengerRequests(requests.filter(r => r.rideRequestStatus !== 'CANCELLED' && r.rideRequestStatus !== 'COMPLETED'));
+      }
+    } catch (err) {
+      console.error("Failed to load initial dashboard data", err);
+    }
+  };
+
+  // WebSocket Subscriptions for Dashboard
+  useEffect(() => {
+    if (!connected || !user?.isEmailVerified) return;
+
+    console.log("Dashboard subscribing to real-time updates...");
+
+    // 1. Private Queue for General Ride Status (ACCEPTED, REJECTED)
+    const unsubscribeStatus = subscribe("/user/queue/ride-status", (msg: any) => {
+      setToast({ message: `Your ride request was ${msg}!`, type: "INFO", isVisible: true });
+      loadInitialData();
+    });
+
+    // 2. Private Queue for Driver Requests
+    const unsubscribeRequests = subscribe("/user/queue/ride-requests", (data: any) => {
+      if (data.status === "PENDING") {
+        setToast({ message: `New ride request from ${data.passengerName}!`, type: "INFO", isVisible: true });
+      } else if (data.status === "CANCELLED") {
+        setToast({ message: `${data.passengerName} cancelled their request.`, type: "INFO", isVisible: true });
+      }
+      loadInitialData();
+    });
+
+    // 3. Status updates for individual rides (like arrival)
+    // We listen to all active requests the user has
+    passengerRequests.forEach(req => {
+        if (req.rideRequestStatus === 'ACCEPTED' || req.rideRequestStatus === 'DRIVER_REACHED_PICKUP_LOCATION') {
+            const topic = `/user/queue/ride/${req.rideId}/updates`;
+            subscribe(topic, (msg: any) => {
+                if (msg === "DRIVER_ARRIVED") {
+                    setToast({ message: "Your driver has arrived!", type: "SUCCESS", isVisible: true });
+                }
+                loadInitialData();
+            });
+        }
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeRequests();
+    };
+  }, [connected, user, subscribe, passengerRequests.length]);
+
+  // Fallback Polling
+  useEffect(() => {
+      if (connected) return;
+      const interval = setInterval(() => loadInitialData(), 5000);
+      return () => clearInterval(interval);
+  }, [connected]);
 
   const handleStatusChange = async (newStatus: string) => {
     setStatusChanging(true);
@@ -138,6 +164,7 @@ export default function DashboardPage() {
 
   const handleFetchActiveRides = async () => {
     setIsFetchingRides(true);
+    setShowInProgressList(false); // Close the other list
     try {
       const rides = await fetchActiveRides();
       setPostedRides(rides);
@@ -147,6 +174,21 @@ export default function DashboardPage() {
       setToast({ message: err.message || "Failed to fetch active rides", type: "ERROR", isVisible: true });
     } finally {
       setIsFetchingRides(false);
+    }
+  };
+
+  const handleFetchInProgressAndPosted = async () => {
+    setIsFetchingInProgress(true);
+    setShowRidesList(false); // Close the other list
+    try {
+      const rides = await fetchInProgressAndPostedRides();
+      setInProgressRides(rides);
+      setShowInProgressList(true);
+      setToast({ message: "Journeys fetched successfully", type: "SUCCESS", isVisible: true });
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to fetch journeys", type: "ERROR", isVisible: true });
+    } finally {
+      setIsFetchingInProgress(false);
     }
   };
 
@@ -552,7 +594,7 @@ export default function DashboardPage() {
 
 
               {/* My Posted Rides Row for Drivers - only if they have active rides */}
-              {isDriver && hasActiveRide && (
+              {isDriver && (
                 <div className="mt-10 animate-fade-in-up">
                    <div className="flex items-center justify-between mb-6">
                      <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -561,59 +603,83 @@ export default function DashboardPage() {
                      </h2>
                    </div>
 
-                   <button 
-                    onClick={() => {
-                      if (showRidesList) {
-                        setShowRidesList(false);
-                      } else {
-                        handleFetchActiveRides();
-                      }
-                    }}
-                    disabled={isFetchingRides}
-                    className={`w-full glass-card p-6 text-left transition-all duration-500 group relative overflow-hidden ${
-                      showRidesList 
-                      ? 'border-indigo-500/50 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.1)]' 
-                      : 'border-indigo-500/20 hover:border-indigo-500/50 hover:bg-white/[0.02]'
-                    }`}>
-                    {/* Animated background glow when open */}
-                    {showRidesList && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 animate-pulse" />
-                    )}
-
-                    <div className="flex items-center justify-between relative z-10">
-                      <div className="flex items-center gap-5">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                          showRidesList ? 'bg-indigo-500 text-white' : 'bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20'
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Manage Posted Rides Button */}
+                      <button 
+                        onClick={() => {
+                          if (showRidesList) {
+                            setShowRidesList(false);
+                          } else {
+                            handleFetchActiveRides();
+                          }
+                        }}
+                        disabled={isFetchingRides}
+                        className={`glass-card p-6 text-left transition-all duration-500 group relative overflow-hidden ${
+                          showRidesList 
+                          ? 'border-indigo-500/50 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.1)]' 
+                          : 'border-white/5 hover:border-indigo-500/50 hover:bg-white/[0.02]'
                         }`}>
-                          {isFetchingRides ? (
-                            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                          )}
+                        <div className="flex items-center justify-between relative z-10">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                              showRidesList ? 'bg-indigo-500 text-white' : 'bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500/20'
+                            }`}>
+                              {isFetchingRides ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-base font-bold text-white tracking-tight">Posted Rides</p>
+                              <p className="text-slate-500 text-[10px] font-medium uppercase tracking-widest">Manage Requests</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xl font-black text-white tracking-tight">Manage Posted Rides</p>
-                          <p className="text-slate-400 text-sm font-medium">Review your routes and handle join requests</p>
+                      </button>
+
+                      {/* Active Journeys Button (NEW) */}
+                      <button 
+                        onClick={() => {
+                          if (showInProgressList) {
+                            setShowInProgressList(false);
+                          } else {
+                            handleFetchInProgressAndPosted();
+                          }
+                        }}
+                        disabled={isFetchingInProgress}
+                        className={`glass-card p-6 text-left transition-all duration-500 group relative overflow-hidden ${
+                          showInProgressList 
+                          ? 'border-emerald-500/50 bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.1)]' 
+                          : 'border-white/5 hover:border-emerald-500/50 hover:bg-white/[0.02]'
+                        }`}>
+                        <div className="flex items-center justify-between relative z-10">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                              showInProgressList ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20'
+                            }`}>
+                              {isFetchingInProgress ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-base font-bold text-white tracking-tight">Active Journeys</p>
+                              <p className="text-slate-500 text-[10px] font-medium uppercase tracking-widest flex items-center gap-2">
+                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                 Live Status
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className={`flex items-center gap-2 font-black text-sm uppercase tracking-widest transition-all ${
-                        showRidesList ? 'text-white' : 'text-indigo-400'
-                      }`}>
-                        {showRidesList ? 'Close Management' : 'View Rides'}
-                        <svg 
-                          className={`w-5 h-5 transition-transform duration-300 ${showRidesList ? 'rotate-180' : 'group-hover:translate-x-1'}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={showRidesList ? "M19 9l-7 7-7-7" : "M13 7l5 5m0 0l-5 5m5-5H6"} />
-                        </svg>
-                      </div>
-                    </div>
-                  </button>
+                      </button>
+                   </div>
                 </div>
               )}
 
@@ -720,6 +786,68 @@ export default function DashboardPage() {
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Journeys List Section (NEW) */}
+              {showInProgressList && inProgressRides.length > 0 && (
+                <div className="mt-6 animate-fade-in-up space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {inProgressRides.map((ride) => (
+                      <div key={ride.rideId} className="glass-card p-6 border-emerald-500/20 hover:border-emerald-500/40 transition-all group">
+                        <div className="flex justify-between items-start mb-6">
+                            <div className={`rounded-lg px-3 py-1.5 flex flex-col justify-center ${
+                              ride.rideStatus === 'RIDE_IN_PROGRESS' 
+                              ? 'bg-emerald-500/10 border border-emerald-500/20' 
+                              : 'bg-indigo-500/10 border border-indigo-500/20'
+                            }`}>
+                                <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${
+                                  ride.rideStatus === 'RIDE_IN_PROGRESS' ? 'text-emerald-400' : 'text-indigo-400'
+                                }`}>
+                                    {ride.rideStatus.replace('_', ' ')}
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-black text-white">{ride.totalJoinedPassengers} Passengers</p>
+                                <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Joined</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                <p className="text-[11px] text-slate-300 font-medium line-clamp-1">{ride.boardingAddress}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                <p className="text-[11px] text-slate-300 font-medium line-clamp-1">{ride.destinationAddress}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                            <div className="flex flex-col">
+                                <span className="text-xs font-black text-white">{new Date(ride.rideDepartureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{new Date(ride.rideDepartureTime).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    if (ride.rideStatus === 'RIDE_IN_PROGRESS') {
+                                        router.push(`/ride/${ride.rideId}/active`);
+                                    } else {
+                                        router.push(`/ride/${ride.rideId}/requests`);
+                                    }
+                                }}
+                                className="px-6 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2 group"
+                            >
+                                Manage Ride
+                                <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                 </svg>
                             </button>
                         </div>

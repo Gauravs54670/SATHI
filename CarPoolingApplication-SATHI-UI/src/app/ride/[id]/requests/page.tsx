@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { fetchRideRequests, RideAllBookingRequestsDTO, acceptRideRequest, rejectRideRequest, fetchRideAcceptedPassengers, RideAcceptedPassengerDTO, startRide } from "@/lib/api";
 import { startLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
+import { useSocket } from "@/context/SocketContext";
 
 export default function RideRequestsPage() {
   const { id } = useParams();
@@ -20,23 +21,22 @@ export default function RideRequestsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
+  const { connected, subscribe } = useSocket();
 
-  const loadRequests = async () => {
+  const loadRequests = async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const data = await fetchRideRequests(rideIdNum);
       setRequests(data);
       
       // If ride is already in progress, show as started
       if (data.pendingRequests.length === 0 && data.acceptedPassengers.length > 0) {
-        // We might want to check an explicit status field in the future
-        // For now, if tracking is active globally, reflect it
         if (isTrackingActive()) setIsStarted(true);
       }
       
       // Fetch rich accepted details if there are confirmed passengers
       if (data.acceptedPassengers.length > 0) {
-        setLoadingAccepted(true);
+        if (!isSilent) setLoadingAccepted(true);
         try {
           const detailed = await fetchRideAcceptedPassengers(rideIdNum);
           setAcceptedDetails(detailed);
@@ -56,6 +56,24 @@ export default function RideRequestsPage() {
   useEffect(() => {
     if (id) loadRequests();
   }, [id]);
+
+  // Real-time Update Listener
+  useEffect(() => {
+    if (!connected || !rideIdNum) return;
+
+    console.log(`Subscribing to requests for ride ${rideIdNum}...`);
+    
+    // Subscribe to the global ride-requests queue
+    const unsubscribe = subscribe("/user/queue/ride-requests", (data: any) => {
+       // Filter for messages relating to THIS specific ride
+       if (data.rideId === rideIdNum) {
+          console.log("New real-time request update received for this ride!");
+          loadRequests(true); // Perform a silent refresh
+       }
+    });
+
+    return () => unsubscribe();
+  }, [connected, rideIdNum, subscribe]);
 
   const handleAction = async (requestId: number, action: 'accept' | 'reject') => {
     setProcessingId(requestId);

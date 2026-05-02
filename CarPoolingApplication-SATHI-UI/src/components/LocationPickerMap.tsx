@@ -57,6 +57,18 @@ interface LocationPickerMapProps {
   pricePerKm: number;
 }
 
+const calculateDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371000; // Radius of the earth in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
 // Sub-component to handle map panning and events
 function MapController({ 
   onMapClick, 
@@ -140,12 +152,23 @@ export default function LocationPickerMap({
         setRoutes(decodedRoutes);
         setSelectedRouteIndex(0);
         
-        // Initial route sync
         const main = decodedRoutes[0];
         onRouteSelect(main.distance / 1000, main.geometry);
       }
     } catch (err) {
-      console.error("Failed to fetch routes", err);
+      console.error("Failed to fetch routes from OSRM, using fallback line", err);
+      // Fallback: Create a simple straight line between pickup and drop
+      const fallbackRoute: RouteOption = {
+        distance: calculateDistanceInMeters(start.lat, start.lng, end.lat, end.lng),
+        duration: (calculateDistanceInMeters(start.lat, start.lng, end.lat, end.lng) / 10), // Rough estimate 36km/h
+        geometry: "", // No polyline
+        points: [[start.lat, start.lng], [end.lat, end.lng]]
+      };
+      setRoutes([fallbackRoute]);
+      setSelectedRouteIndex(0);
+      onRouteSelect(fallbackRoute.distance / 1000, "");
+      
+      // Notify parent if needed, or just let them see the straight line
     } finally {
       setLoading(false);
     }

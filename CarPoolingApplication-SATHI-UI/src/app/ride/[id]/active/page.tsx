@@ -16,6 +16,7 @@ import {
 import { startLiveTracking, stopLiveTracking, isTrackingActive } from "@/lib/rideTracker";
 import Navbar from "@/components/Navbar";
 import Toast from "@/components/Toast";
+import { useSocket } from "@/context/SocketContext";
 
 export default function ActiveRidePage() {
   const { id } = useParams();
@@ -40,6 +41,8 @@ export default function ActiveRidePage() {
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [passengerRatings, setPassengerRatings] = useState<Record<number, { rating: number; comment: string; submitted: boolean; loading: boolean }>>({});
 
+  const { connected, subscribe } = useSocket();
+
   useEffect(() => {
     if (!rideIdNum) return;
 
@@ -61,32 +64,43 @@ export default function ActiveRidePage() {
 
     loadData();
 
-    // Background polling for synchronization (every 3 seconds)
-    const pollInterval = setInterval(async () => {
-      try {
-        const data = await fetchRideAcceptedPassengers(rideIdNum);
-        setPassengers(data);
-
-        // If the passenger we are currently verifying has cancelled or boarded, 
-        // automatically close the modal.
-        if (activePassenger) {
-          const updatedState = data.find(p => p.passengerRideRequestId === activePassenger.passengerRideRequestId);
-          if (!updatedState || updatedState.rideRequestStatus === 'ONBOARDED' || updatedState.rideRequestStatus === 'NOT_BOARDED' || updatedState.rideRequestStatus === 'CANCELLED') {
-            setIsOtpModalOpen(false);
-            setActivePassenger(null);
-            setOtpValue("");
-          }
-        }
-      } catch (err) {
-        console.error("Sync polling failed", err);
-      }
-    }, 3000);
-
     return () => {
-      clearInterval(pollInterval);
       stopLiveTracking();
     };
-  }, [rideIdNum, activePassenger]);
+  }, [rideIdNum]);
+
+  // WebSocket Subscriptions
+  useEffect(() => {
+    if (!connected || !rideIdNum) return;
+
+    console.log("Driver subscribing to private requests inbox...");
+    
+    const unsubscribe = subscribe("/user/queue/ride-requests", (data: any) => {
+      console.log("Driver received request update:", data);
+      
+      // Only act if it's for this specific ride
+      if (data.rideId === rideIdNum) {
+        if (data.status === "PENDING") {
+          setToast({ message: `New booking request from ${data.passengerName}!`, type: "INFO", isVisible: true });
+        } else if (data.status === "CANCELLED") {
+          setToast({ message: `${data.passengerName} cancelled their request.`, type: "INFO", isVisible: true });
+        }
+        
+        // Refresh the passenger list
+        reloadPassengers();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [connected, rideIdNum, subscribe]);
+
+  // Fallback Polling (only if socket is not connected)
+  useEffect(() => {
+    if (connected || !rideIdNum) return;
+
+    const interval = setInterval(() => reloadPassengers(), 5000);
+    return () => clearInterval(interval);
+  }, [connected, rideIdNum]);
 
   const reloadPassengers = async () => {
 

@@ -18,7 +18,8 @@
     "react-dom": "^19.0.0",
     "react-easy-crop": "^5.5.7",
     "react-leaflet": "^5.0.0",
-    "sockjs-client": "^1.6.1"
+    "sockjs-client": "^1.6.1",
+    "supports-color": "^10.2.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

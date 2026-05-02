@@ -343,6 +343,25 @@ export async function fetchActiveRides() {
   return data.data as DriverPostedRide[];
 }
 
+export interface DriverInProgressAndPostedRides {
+  rideId: number;
+  boardingAddress: string;
+  destinationAddress: string;
+  rideDepartureTime: string;
+  rideStatus: string;
+  totalJoinedPassengers: number;
+}
+
+export async function fetchInProgressAndPostedRides() {
+  if (!getAuthToken()) throw new Error("Not logged in");
+  const res = await fetchWithAuth(`${API_BASE}/driver/in-progress-and-posted-rides`, {
+    method: "GET",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.exceptionMessage || data.message || "Failed to fetch in-progress and posted rides");
+  return data.data as DriverInProgressAndPostedRides[];
+}
+
 export interface AvailablePostedRideDTO {
   rideId: number;
   driverName: string;

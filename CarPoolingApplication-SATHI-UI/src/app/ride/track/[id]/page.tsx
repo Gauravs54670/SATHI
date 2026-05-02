@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { fetchRideRequestUpdates, fetchRideAcceptedDrivers, fetchRideOtp, fetchRideReceipt, RideRequestUpdatesDTO, RideAcceptedDriverDTO, PassengerRideReceiptDTO, cancelRideRequest, rateDriver } from "@/lib/api";
 import Toast, { ToastType } from "@/components/Toast";
+import { useSocket } from "@/context/SocketContext";
 
 export default function PassengerTrackPage() {
    const { id } = useParams();
@@ -22,6 +23,9 @@ export default function PassengerTrackPage() {
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
    const [showSummaryModal, setShowSummaryModal] = useState(true);
+   const [driverLocation, setDriverLocation] = useState<{ lat: number, lng: number } | null>(null);
+
+   const { connected, subscribe } = useSocket();
 
    // Toast State
    const [toast, setToast] = useState<{ show: boolean; msg: string; type: ToastType }>({
@@ -42,6 +46,12 @@ export default function PassengerTrackPage() {
 
          if (!currentReq) {
             setError("Ride request not found or no longer active.");
+            return;
+         }
+
+         if (currentReq.rideRequestStatus === 'REJECTED') {
+            setError("REJECTED: The driver has rejected your ride request.");
+            setRequest(currentReq); // Keep the request for display context if needed
             return;
          }
 
@@ -87,9 +97,56 @@ export default function PassengerTrackPage() {
 
    useEffect(() => {
       fetchData(true);
-      const interval = setInterval(() => fetchData(), 3000);
-      return () => clearInterval(interval);
    }, [fetchData]);
+
+   // WebSocket Subscriptions
+   useEffect(() => {
+      if (!connected || !rideRequestId || !request?.rideId) return;
+
+      const rideTopic = `/topic/ride/${request.rideId}/updates`;
+      const gpsTopic = `/topic/ride/${request.rideId}/gps`;
+      const privateUpdateQueue = `/user/queue/ride/${request.rideId}/updates`;
+
+      console.log("Subscribing to topics:", { rideTopic, gpsTopic, privateUpdateQueue });
+
+      const unsubscribeUpdates = subscribe(rideTopic, (msg: any) => {
+         console.log("Ride Broadcast Update received:", msg);
+         triggerToast(`Ride status updated: ${msg}`, "INFO");
+         fetchData(); // Refresh data on any major status change
+      });
+
+      const unsubscribeGps = subscribe(gpsTopic, (msg: any) => {
+         // msg is RideGPSUpdatesDTO
+         if (msg.latitude && msg.longitude) {
+            setDriverLocation({ lat: msg.latitude, lng: msg.longitude });
+         }
+      });
+
+      const unsubscribePrivate = subscribe(privateUpdateQueue, (msg: any) => {
+         console.log("Private Ride Update received:", msg);
+         if (msg === "DRIVER_ARRIVED") {
+            triggerToast("Your driver has reached the pickup point!", "SUCCESS");
+         } else if (msg === "BOARDED") {
+            triggerToast("Welcome aboard!", "SUCCESS");
+         } else if (msg === "REJECTED") {
+            triggerToast("Your ride request was rejected by the driver.", "ERROR");
+         }
+         fetchData();
+      });
+
+      return () => {
+         unsubscribeUpdates();
+         unsubscribeGps();
+         unsubscribePrivate();
+      };
+   }, [connected, rideRequestId, request?.rideId, subscribe, fetchData, triggerToast]);
+
+   // Fallback Polling (only if socket is not connected)
+   useEffect(() => {
+      if (connected) return;
+      const interval = setInterval(() => fetchData(), 5000);
+      return () => clearInterval(interval);
+   }, [connected, fetchData]);
 
    const handleCancel = async () => {
       if (!confirm("Are you sure you want to cancel this booking?")) return;
@@ -118,18 +175,31 @@ export default function PassengerTrackPage() {
    }
 
    if (error || !request) {
+      const isRejected = error?.includes("REJECTED");
       return (
          <div className="min-h-screen bg-bg-app">
             <Navbar />
             <div className="max-w-md mx-auto px-6 py-20 text-center">
-               <div className="w-20 h-20 rounded-3xl bg-rose-500/10 flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-10 h-10 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+               <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 ${isRejected ? 'bg-amber-500/10' : 'bg-rose-500/10'}`}>
+                  {isRejected ? (
+                     <svg className="w-10 h-10 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                     </svg>
+                  ) : (
+                     <svg className="w-10 h-10 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                     </svg>
+                  )}
                </div>
-               <h2 className="text-2xl font-black text-white mb-2 italic">Tracking Unavailable</h2>
-               <p className="text-slate-400 mb-8 font-medium">{error || "Could not find ride details."}</p>
-               <button onClick={() => router.push("/dashboard")} className="sathi-btn">Back to Dashboard</button>
+               <h2 className="text-2xl font-black text-white mb-2 italic">
+                  {isRejected ? "Request Rejected" : "Tracking Unavailable"}
+               </h2>
+               <p className="text-slate-400 mb-8 font-medium">
+                  {isRejected 
+                     ? "The driver is unable to fulfill your request at this time. Please try booking with another driver." 
+                     : (error || "Could not find ride details.")}
+               </p>
+               <button onClick={() => router.push("/dashboard")} className="sathi-btn w-full">Find Another Ride</button>
             </div>
          </div>
       );
