@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.gaurav.CarPoolingApplication_SATHI.DTO.DriverDTO.DriverInProgressAndPostedRides;
-import com.gaurav.CarPoolingApplication_SATHI.DTO.RideDTO.RideJoinedPassengersDTO;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
