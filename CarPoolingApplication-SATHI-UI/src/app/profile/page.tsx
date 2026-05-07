@@ -9,6 +9,7 @@ import Avatar from "@/components/Avatar";
 import EmailVerificationModal from "@/components/EmailVerificationModal";
 import ImageViewModal from "@/components/ImageViewModal";
 import ImageCropModal from "@/components/ImageCropModal";
+import Toast from "@/components/Toast";
 
 export default function ProfilePage() {
   const { user, isLoggedIn, isLoading, refreshProfile } = useAuth();
@@ -19,6 +20,11 @@ export default function ProfilePage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "SUCCESS" | "ERROR" | "INFO"; isVisible: boolean }>({
+    message: "",
+    type: "SUCCESS",
+    isVisible: false
+  });
   
   // Photo management states
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -77,11 +83,20 @@ export default function ProfilePage() {
       await uploadProfilePhoto(file);
       await refreshProfile();
       setUploadSuccess(true);
+      setToast({
+        message: "Profile photo updated successfully!",
+        type: "SUCCESS",
+        isVisible: true
+      });
       setTimeout(() => setUploadSuccess(false), 3000);
     } catch (err: any) {
       console.error("Upload failed:", err);
-      // Keep error only in console (inspect area) as requested
       setPreview(null);
+      setToast({
+        message: err.message || "Failed to upload photo",
+        type: "ERROR",
+        isVisible: true
+      });
     } finally {
       setUploading(false);
     }
@@ -209,6 +224,11 @@ export default function ProfilePage() {
 
                 {uploading && <p className="text-xs text-indigo-400 mt-3 animate-pulse">Uploading photo...</p>}
                 {uploadSuccess && <p className="text-xs text-emerald-400 mt-3">Photo updated successfully!</p>}
+                {toast.isVisible && toast.type === "ERROR" && (
+                  <p className="text-xs text-rose-500 font-semibold mt-3 max-w-[220px] leading-tight mx-auto animate-fade-in-up">
+                    {toast.message}
+                  </p>
+                )}
               </div>
 
               {/* Stats Card */}
@@ -385,6 +405,13 @@ export default function ProfilePage() {
             isUploading={uploading}
         />
       )}
+
+      <Toast 
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 }
